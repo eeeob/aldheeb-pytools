@@ -29,6 +29,15 @@ class PlatformDevice(StrEnum):
     IOS = auto()
     DESKTOP = auto()
 
+class TimeUnit(IntEnum):
+    MINUTE = 60
+    HOUR = MINUTE * 60
+    DAY = HOUR * 24
+    WEEK = DAY * 7
+    MONTH = DAY * 30
+    YEAR = MONTH * 12
+
+
 IMAP_DOMAIN_TO_PROVIDER = {
     "gmail.com": ImapEmailProvider.GMAIL,
     "outlook.com": ImapEmailProvider.OUTLOOK,
@@ -44,5 +53,6 @@ __all__ = (
     "ImapEmailProvider", 
     "PlatformDevice", 
     "TgMessageLength", 
+    "TimeUnit", 
     "IMAP_DOMAIN_TO_PROVIDER", 
 )
