@@ -1,7 +1,7 @@
 # aldheeb-pytools 🛠️
 
 [![PyPI version](https://img.shields.io/pypi/v/aldheeb-pytools)](https://pypi.org/project/aldheeb-pytools/)
-[![Python versions](https://img.shields.io/pypi/pyversions/aldheeb-pytools.svg)](https://pypi.org/project/aldheeb-pytools/)
+[![Python versions](https://img.shields.io/pypi/pyversions/aldheeb-pytools)](https://pypi.org/project/aldheeb-pytools/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **aldheeb-pytools** is a modern Python utilities library providing async-ready helpers for backend systems, databases, cryptography, and Telegram automation.
