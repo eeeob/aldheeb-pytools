@@ -1,0 +1,109 @@
+from typing import Union, Optional, Tuple, List, overload
+
+from .typings import _False, _True, Container
+from .models import LoggerOptions, LogHandlerOptions
+from .iter_tools import flat_cont
+
+import logging
+
+
+
+
+def flush_logger_handler(handler: Optional[logging.Handler] = None) -> None:
+    if handler is None:
+        for logger in logging.Logger.manager.loggerDict.values():
+            if isinstance(logger, logging.Logger):
+                for handler in logger.handlers:
+                    handler.flush()
+
+        for handler in logging.root.handlers:
+            handler.flush()
+
+    else:
+        handler.flush()
+
+
+@overload
+def attach_logger_handlers(
+    hdlrs_options: LogHandlerOptions, 
+    return_loggers: _False = ...
+    ) -> Union[logging.StreamHandler, logging.FileHandler]: ...
+@overload
+def attach_logger_handlers(
+    hdlrs_options: LogHandlerOptions, 
+    return_loggers: _True
+    ) -> Tuple[logging.Logger, Union[logging.StreamHandler, logging.FileHandler]]: ...
+@overload
+def attach_logger_handlers(
+    hdlrs_options: 'Container[LogHandlerOptions]', 
+    return_loggers: _False = ...
+    ) -> List[Union[logging.StreamHandler, logging.FileHandler]]: ...
+@overload
+def attach_logger_handlers(
+    hdlrs_options: 'Container[LogHandlerOptions]', 
+    return_loggers: _True
+    ) -> List[Tuple[logging.Logger, Union[logging.StreamHandler, logging.FileHandler]]]: ...
+
+def attach_logger_handlers(
+    hdlrs_options: Union[LogHandlerOptions, 'Container[LogHandlerOptions]'], 
+    return_loggers: bool = False
+    ):
+    
+    handlers = []
+
+    for options in flat_cont(hdlrs_options):
+        logger = options.resolve_logger()
+        handler = options.resolve_handler()
+
+        if options.level is not None:
+            handler.setLevel(options.level)
+        
+        if options.filter is not None:
+            handler.addFilter(options.filter)
+        
+        if options.formatter is not None:
+            handler.setFormatter(options.formatter)
+        
+        logger.addHandler(handler)
+
+        handlers.append((logger, handler) if return_loggers else handler)
+    
+    return handlers[0] if len(handlers) == 1 else handlers
+
+
+def set_loggers(
+        loggers_options: Union[LoggerOptions, 'Container[LoggerOptions]']
+        ) -> Union[logging.Logger, List[logging.Logger]]:
+    loggers = []
+
+    for options in flat_cont(loggers_options):
+        logger = options.resolve_logger()
+
+        if options.reset_level:
+            logger.setLevel(logging.NOTSET)
+        
+        if options.propagate is not None:
+            logger.propagate = options.propagate
+        
+        if options.level is not None:
+            logger.setLevel(options.level)
+        
+        if options.filter is not None:
+            logger.addFilter(options.filter)
+        
+        loggers.append(logger)
+    
+    
+    return loggers[0] if len(loggers) == 1 else loggers
+
+
+
+__all__ = (
+    "flush_logger_handler", 
+    "attach_logger_handlers", 
+    "set_loggers", 
+)
+
+
+
+
