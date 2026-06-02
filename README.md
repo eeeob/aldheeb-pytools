@@ -40,7 +40,7 @@ pip install "aldheeb-pytools[full]"
 ### 🔐 Encryption example
 
 ```python
-from pytools.crypto import encrypt, decrypt
+from pytools import encrypt, decrypt
 
 key = "my-secure-key"
 
