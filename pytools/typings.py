@@ -1,6 +1,6 @@
 from typing import (
     Collection as  TCollection, Generator, Union, Reversible, 
-    Sequence, AbstractSet, Mapping, 
+    Sequence, AbstractSet, Mapping, TypeAlias, 
     Any, Dict, Annotated, TYPE_CHECKING, Callable, Coroutine, 
     Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Tuple
 )
@@ -41,10 +41,10 @@ type MaybeAwaitable[**P, R] = Awaitable[R] | MaybeCoroutineCallable[P, R]
 type MaybeContainer[I] = I | "Container[I]"
 
 
-NotContainer = Union[bytearray, bytes, str, memoryview, EnumType]
-PhoneNumber = Annotated[str, "Phone number in international format, e.g. +967xxxxxxxxx"]
-RegionCode = Annotated[str, "يجب ان يكون lower وايضا يجب التاكد من صحته"]
-Number = Union[int, float]
+NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType]
+PhoneNumber: TypeAlias = Annotated[str, "Phone number in international format, e.g. +967xxxxxxxxx"]
+RegionCode: TypeAlias = Annotated[str, "يجب ان يكون lower وايضا يجب التاكد من صحته"]
+Number: TypeAlias = Union[int, float]
 
 
 _P = ParamSpec("_P")
@@ -66,7 +66,7 @@ class CountryInfo(TypedDict):
     name: str
 
 
-WorkTaskInfo = Tuple[
+WorkTaskInfo: TypeAlias = Tuple[
     Callable[..., Awaitable[Any]],
     Sequence[Any],
     Dict[str, Any], 
