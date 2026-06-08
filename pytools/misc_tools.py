@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, overload
+from typing import Any, Callable, Optional, Tuple, overload
 from .typings import _CT
 
 
@@ -104,12 +104,18 @@ def patch_into(
 @overload
 def patch_cls(patch_class: _CT) -> _CT: ...
 @overload
-def patch_cls(*, preserve_old: bool = True, setter: Callable[[type, str, Any], None] = setattr) -> Callable[[_CT], _CT]: ...
+def patch_cls(
+    *, 
+    preserve_old: bool = True, 
+    setter: Callable[[type, str, Any], None] = setattr, 
+    include_dunders: Tuple[str, ...] = ("__init__",),
+    ) -> Callable[[_CT], _CT]: ...
 def patch_cls(
     patch_class: Optional[_CT] = None, 
     *, 
     preserve_old: bool = True, 
     setter: Callable[[type, str, Any], None] = setattr, 
+    include_dunders: Tuple[str, ...] = ("__init__",),
     ):
 
     def _apply(patch_class: type):
