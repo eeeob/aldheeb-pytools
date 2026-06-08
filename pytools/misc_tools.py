@@ -131,11 +131,12 @@ def patch_cls(
 
         for name, member in patch_class.__dict__.items():
             if name.startswith("__") and name.endswith("__"):
-                continue
+                if name not in include_dunders:
+                    continue
 
             if preserve_old:
                 if hasattr(target, name):
-                    setattr(target, f"old_{name}", getattr(target, name))
+                    setattr(target, f"old{name}", getattr(target, name))
 
             setter(target, name, member)
 
