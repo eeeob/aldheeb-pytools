@@ -1,4 +1,4 @@
-from typing import Optional, Any, Callable
+from typing import Any, Callable
 from .typings import _CT
 
 
@@ -82,25 +82,19 @@ def patch_into(
     *, 
     patch_key: str = "should_patch", 
     preserve_old: bool = True, 
-    transform: Optional[Callable[[type, Any], Any]] = None,
+    setter: Callable[[type, str, Any], None] = setattr,
     ) -> Callable[[_CT], _CT]:
     
     def apply(current_class: _CT) -> _CT:
-        patched_members = {
-            name: member
-            for name, member in current_class.__dict__.items()
-            if getattr(unwrap(member), patch_key, False)
-        }
+        for name, member in current_class.__dict__.items():
+            if not getattr(unwrap(member), patch_key, False):
+                continue
 
-        for name, member in patched_members.items():
             if preserve_old:
-                if old_member := getattr(target, name, None):
-                    setattr(target, f"old_{name}", old_member)
+                if hasattr(target, name):
+                    setattr(target, f"old_{name}", getattr(target, name))
 
-            if transform is not None:
-                member = transform(current_class, member)
-
-            setattr(target, name, member)
+            setter(target, name, member)
 
         return current_class
 
