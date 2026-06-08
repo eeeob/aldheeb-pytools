@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Optional, overload
 from .typings import _CT
 
 
@@ -101,9 +101,52 @@ def patch_into(
     return apply   
 
 
+@overload
+def patch_cls(patch_class: _CT) -> _CT: ...
+@overload
+def patch_cls(*, preserve_old: bool = True, setter: Callable[[type, str, Any], None] = setattr) -> Callable[[_CT], _CT]: ...
+def patch_cls(
+    patch_class: Optional[_CT] = None, 
+    *, 
+    preserve_old: bool = True, 
+    setter: Callable[[type, str, Any], None] = setattr, 
+    ):
+
+    def _apply(patch_class: type):
+        bases = [b for b in patch_class.__bases__ if b is not object]
+
+        if len(bases) != 1:
+            raise TypeError(
+                f"{patch_class.__name__} must inherit from exactly one base, "
+                f"got {[b.__name__ for b in bases]}"
+            )
+
+        target = bases[0]
+
+        for name, member in patch_class.__dict__.items():
+            if name.startswith("__") and name.endswith("__"):
+                continue
+
+            if preserve_old:
+                if hasattr(target, name):
+                    setattr(target, f"old_{name}", getattr(target, name))
+
+            setter(target, name, member)
+
+        return target
+
+    
+    if patch_class is not None:
+        return _apply(patch_class)
+
+    return _apply
+
+
 __all__ = (
     "unwrap_cls", 
     "generate_secret", 
     "unwrap", 
     "patch_into", 
+    "patch_cls", 
+    
 )
