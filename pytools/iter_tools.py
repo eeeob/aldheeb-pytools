@@ -51,25 +51,19 @@ def flat_cont(*containers: None) -> List: ...
 @overload
 def flat_cont(*containers: NestedContainer[_T]) -> List[_T]: ...
 def flat_cont(*containers):
-
-    def flat(item):
-        r = []
-
+    def _flat_generator(item):
         if is_container(item):
             for i in item:
-                r += flat(i)
+                yield from _flat_generator(i)
         elif item is not None:
-            r.append(item)
-
-        return r
+            yield item
 
     result = []
-
+    
     for item in containers:
-        result += flat(item)
-
+        result.extend(_flat_generator(item))
+        
     return result
-
 
 
 

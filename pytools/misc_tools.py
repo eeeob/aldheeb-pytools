@@ -92,7 +92,7 @@ def patch_into(
 
             if preserve_old:
                 if hasattr(target, name):
-                    setattr(target, f"old_{name}", getattr(target, name))
+                    setattr(target, f"old{name}", getattr(target, name))
 
             setter(target, name, member)
 
