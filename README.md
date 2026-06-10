@@ -73,7 +73,6 @@ See the [LICENSE](LICENSE) file for details.
 ## 📬 Contact
 
 * Email: [aldheeb01@gmail.com](mailto:aldheeb01@gmail.com)
-* Telegram: [Abdullah](t.me/eeeob)
 * GitHub: https://github.com/eeeob/aldheeb-pytools
 
 ---
