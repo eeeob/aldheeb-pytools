@@ -1,16 +1,19 @@
 from typing import Union, Tuple, Optional, List, Dict, Final, overload
 from pathlib import Path
 
-from pyrogram.types.user_and_chats.user import Link
+try:
+    from pyrogram.types.user_and_chats.user import Link
 
-from pyrogram.enums import ParseMode
-from pyrogram.types import CallbackQuery as Query, Message, User, Chat
-from pyrogram.utils import get_channel_id
-from pyrogram import Client
+    from pyrogram.enums import ParseMode
+    from pyrogram.types import CallbackQuery as Query, Message, User, Chat
+    from pyrogram.utils import get_channel_id
+except ImportError:
+    pass
 
 from .typings import _T, _True, _False
 from .errors import ValidationError
 from .enums import TgMessageLength, PlatformDevice
+
 from ._devices import (
     AndroidDevice, 
     iOSDeivce, 
@@ -19,6 +22,7 @@ from ._devices import (
     macOSDevice, 
     DeviceInfo
 )
+
 from .validate_tools import is_tg_user_id
 from .num_tools import to_int
 from .text_tools import to_str
@@ -27,14 +31,13 @@ from .files_tools import load_json
 from .iter_tools import flat_cont
 from .email_tools import fetch_emails_from, detect_email_provider
 
+from ._optional import _optional_import
+
+
 import random
 import re
 
-_POINTS: Final[Tuple[Tuple[int, float]]] = tuple(
-    (uid, date_to_stamp(date, format="%Y-%m-%d")) 
-    for uid, date in load_json(Path(__file__).parent / "data" / "tg_points.json")
-)
-
+_POINTS: Optional[Tuple[Tuple[int, float]]] = None
 
 _DEVICES: Final[Dict[PlatformDevice, Union[AndroidDevice, Tuple[AndroidDevice, ...]]]] = {
     PlatformDevice.ANDROID: AndroidDevice, 
@@ -43,14 +46,21 @@ _DEVICES: Final[Dict[PlatformDevice, Union[AndroidDevice, Tuple[AndroidDevice, .
 }
 _FLATTED_DEVICES = flat_cont(_DEVICES.values())
 
-
-def make_pyro_update_key(update: Union[Message, Query]) -> Tuple[int, int]:
-    if isinstance(update, Query):
-        update = update.message
+INVITE_LINK_RE = re.compile(r"^(?:https?://)?(?:www\.)?(?:t(?:elegram)?\.(?:org|me|dog)/(?:joinchat/|\+))([\w-]+)$")
+CHANNEL_MESSAGE_LINK_RE = re.compile(r"^(?:https?://)?(?:www\.)?(?:t(?:elegram)?\.(?:org|me|dog)/(?:c/)?)([\w]+)(?:.+)?$")
     
-    return (update.chat.id, update.id)
 
-def extract_pyro_update_text(update: Union[Message, Query]) -> str:
+def _build_points():
+    global _POINTS
+
+    if _POINTS is None:
+        _POINTS = tuple(
+            (uid, date_to_stamp(date, format="%Y-%m-%d")) 
+            for uid, date in load_json(Path(__file__).parent / "data" / "tg_points.json")
+        )
+
+@_optional_import(("kurigram", "tg"))
+def extract_pyro_update_text(update: Union["Message", "Query"]) -> str:
     if isinstance(update, Message):
         txt = update.text or update.caption or ""
     elif isinstance(update, Query):
@@ -63,19 +73,20 @@ def extract_pyro_update_text(update: Union[Message, Query]) -> str:
 
 @overload
 def format_tg_username(
-    target: Union[str, Chat, User], 
+    target: Union[str, "Chat", "User"], 
     with_invite_link: bool = False, 
     with_at: bool = True, 
     ) -> Optional[str]: ...
 @overload
 def format_tg_username(
-    target: Union[str, Chat, User], 
+    target: Union[str, "Chat", "User"], 
     with_invite_link: bool = False, 
     with_at: bool = True, 
     default: _T = ...
     ) -> Union[str, _T]: ...
+@_optional_import(("kurigram", "tg"))
 def format_tg_username(
-    target: Union[str, Chat, User], 
+    target: Union[str, "Chat", "User"], 
     with_invite_link: bool = False, 
     with_at: bool = True, 
     default = None
@@ -88,11 +99,11 @@ def format_tg_username(
     if not target:
         return default
     
-    if bool(Client.INVITE_LINK_RE.match(target.lower())):
+    if bool(INVITE_LINK_RE.match(target.lower())):
         return target if with_invite_link else default
     
     
-    match = Client.CHANNEL_MESSAGE_LINK_RE.match(target.lower())
+    match = CHANNEL_MESSAGE_LINK_RE.match(target.lower())
     target = (match.group(1) if match else target.replace("@", "")).strip()
 
     if with_at:
@@ -102,15 +113,16 @@ def format_tg_username(
     
 @overload
 def format_tg_link(
-    target: Union[str, int, Message, Chat, User], 
+    target: Union[str, int, "Message", "Chat", "User"], 
     ) -> Optional[str]: ...
 @overload
 def format_tg_link(
-    target: Union[str, int, Message, Chat, User], 
+    target: Union[str, int, "Message", "Chat", "User"], 
     default: _T
     ) -> Union[str, _T]: ...
+@_optional_import(("kurigram", "tg"))
 def format_tg_link(
-    target: Union[str, int, Message, Chat, User], 
+    target: Union[str, int, "Message", "Chat", "User"], 
     default = None
     ):
 
@@ -125,10 +137,10 @@ def format_tg_link(
     
     target = to_str(target)
 
-    if Client.INVITE_LINK_RE.match(target):
+    if INVITE_LINK_RE.match(target):
         return target
     
-    match = Client.CHANNEL_MESSAGE_LINK_RE.match(target.lower())
+    match = CHANNEL_MESSAGE_LINK_RE.match(target.lower())
     target = to_int((match.group(1) if match else target.replace("@", "")).strip())
     
     if isinstance(target, int):
@@ -142,20 +154,25 @@ def format_tg_link(
     
     return target
 
+@_optional_import(("kurigram", "tg"))
 def format_hidden_tg_link(
     url: str, 
     text: str, 
-    parse_mode: ParseMode = ParseMode.HTML
+    parse_mode: Optional["ParseMode"] = None
     ) -> str:
+
+    if parse_mode is None:
+        parse_mode = ParseMode.HTML
 
     return Link(
         url, text, parse_mode
     )()
 
+@_optional_import(("kurigram", "tg"))
 def mention_tg_user(
     user_id: int, 
     user_full_name: Optional[str] = None, 
-    parse_mode: ParseMode = ParseMode.HTML
+    parse_mode: Optional["ParseMode"] = None
     ) -> str:
 
     if user_full_name is None:
@@ -241,6 +258,8 @@ def _interpolate_time(
     return min(ts, time_utc())
 
 def tg_account_created_at(user_id: int):
+    _build_points()
+    
     points = _POINTS
     
     if user_id <= points[0][0]:
@@ -256,6 +275,7 @@ def tg_account_created_at(user_id: int):
     return _interpolate_time(user_id, *points[-2], *points[-1])
 
 
+@_optional_import(("aioimaplib", "imap"), ("beautifulsoup4", "bs4"))
 async def fetch_tg_email_code(
     email: str, 
     password: str, 
@@ -276,7 +296,6 @@ async def fetch_tg_email_code(
 
 __all__ = (
     "extract_pyro_update_text", 
-    "make_pyro_update_key", 
     "format_tg_username", 
     "format_tg_link", 
     "format_hidden_tg_link", 

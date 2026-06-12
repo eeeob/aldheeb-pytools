@@ -49,6 +49,8 @@ def to_frozenset(value: Union[None, _T, 'Container[_T]']):
 @overload
 def flat_cont(*containers: None) -> List: ...
 @overload
+def flat_cont(*containers: NestedContainer[None]) -> List: ...
+@overload
 def flat_cont(*containers: NestedContainer[_T]) -> List[_T]: ...
 def flat_cont(*containers):
     def _flat_generator(item):
@@ -64,9 +66,6 @@ def flat_cont(*containers):
         result.extend(_flat_generator(item))
         
     return result
-
-
-
 
 
 

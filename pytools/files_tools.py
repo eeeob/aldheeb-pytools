@@ -1,8 +1,8 @@
 from typing import Union, Optional
 from pathlib import Path
-from pydantic import JsonValue
 
 
+from .typings import JsonValue
 from .data_tools import enum_to_value
 
 

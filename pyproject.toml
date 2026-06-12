@@ -23,16 +23,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-dependencies = [
-    "pydantic>=2.0", 
-    "aiologic>=0.16.0", 
-    "pymongo>=4.16.0", 
-    "pycountry>=26.2.16", 
-    "cryptography>=46.0.4", 
-    "beautifulsoup4>=4.14.3", 
-    "phonenumbers>=9.0.21", 
-    "kurigram[fast]>=2.2.23", 
-]
+dependencies = []
 
 
 [project.urls]
@@ -44,8 +35,17 @@ dev = [
     "twine<=6.2.0",
 ]
 
+aiologic = ["aiologic>=0.16.0"]
+mongo = ["pymongo>=4.16.0"]
+country = ["pycountry>=26.2.16", "phonenumbers>=9.0.21"]
+crypto = ["cryptography>=46.0.4"]
+bs4 = ["beautifulsoup4>=4.14.3"]
+imap = ["aioimaplib>=2.0.1"]
+phone = ["phonenumbers>=9.0.21"]
+tg = ["kurigram>=2.0.0"]
+
 full = [
-    "aioimaplib>=2.0.1", 
+    "aldheeb-pytools[aiologic,mongo,country,crypto,bs4,imap,phone,tg]"
 ]
 
 [tool.hatch.build.targets.sdist]

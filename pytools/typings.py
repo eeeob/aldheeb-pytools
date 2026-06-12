@@ -1,12 +1,19 @@
 from typing import (
     Collection as  TCollection, Generator, Union, Reversible, 
-    Sequence, AbstractSet, Mapping, TypeAlias, 
+    Sequence, AbstractSet, Mapping, TypeAlias, List, 
     Any, Dict, Annotated, TYPE_CHECKING, Callable, Coroutine, 
     Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Tuple
 )
 
 from enum import EnumType, Enum
 from concurrent.futures import Future
+
+
+JsonValue: TypeAlias = Union[
+    str, bool, int, float, None, 
+    List['JsonValue'], 
+    Dict[str, 'JsonValue'], 
+    ]
 
 if TYPE_CHECKING:
     type Container[I] = Union[
@@ -32,7 +39,6 @@ else:
     
 
 type NestedContainer[I] = I | "Container[NestedContainer[I]]"
-
 type NestedStrKeyDict[V] = Dict[str, V | NestedStrKeyDict[V]]
 
 type MaybeCoroutineCallable[**P, R] = Callable[P, Coroutine[Any, Any, R] | R]
@@ -85,7 +91,7 @@ __all__ = (
     "CountryInfo", 
     "WorkTaskInfo", "Number", 
     "MaybeCoroutineCallable", 
-    "MaybeContainer", 
+    "MaybeContainer", "JsonValue", 
     "_P", "_T", "_CT", "_FT", 
     "_KT", "_VT", "_True", "_False", 
     "_EnumT", 

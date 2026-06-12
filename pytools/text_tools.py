@@ -10,10 +10,8 @@ from .typings import (
     NestedContainer, 
     _KT, _VT, _T, _True
 )
-from .validate_tools import (
-    is_mapping, is_container
-)
 
+from .validate_tools import is_mapping, is_container
 from .iter_tools import to_list, flat_cont
 from .async_tools import gather_helper, maybe_awaitable
 
@@ -51,9 +49,6 @@ def split_part(
         return value
     except IndexError:
         return value
-
-def format_kw(**kw) -> str:
-    return "\n".join(f"{k}={v}" for k, v in kw.items())
 
 def format_exc_tree(exc: BaseException) -> str:
     def iter_exc():
@@ -289,7 +284,6 @@ __all__ = (
     "split_part",
     "numbering",
     "format_exc_tree", 
-    "format_kw", 
     "smart_split", 
     
 )

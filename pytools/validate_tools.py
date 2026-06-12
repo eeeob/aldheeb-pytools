@@ -6,7 +6,7 @@ from typing import (
     NotRequired, Dict, Never, 
     overload, get_args, 
     get_origin, get_type_hints, 
-    is_typeddict, TYPE_CHECKING, 
+    is_typeddict, 
 )
 
 from types import UnionType
@@ -15,12 +15,14 @@ from enum import EnumType
 try:
     from aioimaplib import aioimaplib
 except ImportError:
-    if not TYPE_CHECKING:
-        aioimaplib = None
+    pass
 
-from pyrogram import Client
-from pyrogram.utils import get_peer_type
-from pyrogram.types import Message
+try:
+    from pyrogram import Client
+    from pyrogram.utils import get_peer_type
+    from pyrogram.types import Message
+except ImportError:
+    pass
 
 
 
@@ -30,9 +32,13 @@ from .typings import (
 )
 from .errors import ValidationError
 
+from ._optional import _optional_import
 
+try:
+    import phonenumbers
+except ImportError:
+    pass
 
-import phonenumbers
 import re
 import inspect
 
@@ -58,12 +64,14 @@ def is_sub_mapping(obj: Any) -> TypeIs[Type[Mapping]]:
 def is_sub_container(obj: Any) -> TypeIs[Type[Container]]:
     return isinstance(obj, type) and issubclass(obj, Container) and not issubclass(obj, NotContainer)
 
+@_optional_import(("kurigram", "tg"))
 def is_tg_channel_id(value: Any) -> TypeIs[int]:
     try:
         return isinstance(value, int) and get_peer_type(value) == "channel"
     except ValueError:
         return False
-
+    
+@_optional_import(("kurigram", "tg"))
 def is_tg_user_id(value: Any) -> TypeIs[int]:
     try:
         return isinstance(value, int) and get_peer_type(value) == "user"
@@ -82,7 +90,8 @@ def is_tg_bot_token(bot_token: Any) -> TypeIs[str]:
         and parts[1].isalnum()
     )
 
-def is_tg_bot_command(message: Union[Message, str]) -> TypeIs[str]:
+@_optional_import(("kurigram", "tg"))
+def is_tg_bot_command(message: Union["Message", str]) -> TypeIs[str]:
     if isinstance(message, Message):
         message = message.text or ""
 
@@ -115,6 +124,7 @@ def is_tg_otp_code(code, with_str = True, remove_spaces = False):
     
     return False
 
+@_optional_import(("phonenumbers", "phone"))
 def is_phone_number(
     phone_number: Union[str, int], 
     remove_spaces: bool = True, 
@@ -154,6 +164,7 @@ def is_email(email: Any) -> TypeIs[str]:
 def iscoroutinefunction_wrapped(f):
     return inspect.iscoroutinefunction(inspect.unwrap(f))
 
+@_optional_import(("kurigram", "tg"))
 async def is_valid_tg_app(api_id, api_hash) -> bool:
     c = Client(f"check_session_{api_id}", api_id=api_id, api_hash=api_hash, in_memory=True, no_updates=True)
 
@@ -167,6 +178,7 @@ async def is_valid_tg_app(api_id, api_hash) -> bool:
         from .async_tools import safe_await
         await safe_await(c.disconnect())
 
+@_optional_import(("aioimaplib", "imap"))
 async def is_accessible_received_email(email: str, password: str):
     from .email_tools import detect_email_provider
 
@@ -174,9 +186,6 @@ async def is_accessible_received_email(email: str, password: str):
 
     if provider is None:
         return False
-    
-    if aioimaplib is None:
-        raise ImportError("is_accessible_received_email aioimaplib required")
 
     client = aioimaplib.IMAP4_SSL(host=provider.host, port=provider.port)
 

@@ -1,10 +1,9 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 try:
     from aioimaplib import aioimaplib
 except ImportError:
-    if not TYPE_CHECKING:
-        aioimaplib = None
+    pass
 
 from .enums import ImapEmailProvider
 from .errors import ValidationError
@@ -12,11 +11,18 @@ from .errors import ValidationError
 from .validate_tools import is_email
 from .async_tools import to_thread, safe_await
 
+from ._optional import _optional_import
+
 import email 
 import html
-import bs4
+
+try:
+    import bs4
+except ImportError:
+    pass
 
 
+@_optional_import(("beautifulsoup4", "bs4"))
 def parse_email_bytes(bytes_msg: bytearray, multi_part_sep: str = "\n") -> str:
     msg = email.message_from_bytes(bytes_msg)
     text = ""
@@ -57,6 +63,7 @@ def detect_email_provider(email: str) -> Optional[ImapEmailProvider]:
     return ImapEmailProvider.from_domain(email.split("@")[-1].lower())
 
 
+@_optional_import(("aioimaplib", "imap"), ("beautifulsoup4", "bs4"))
 async def fetch_emails_from(
     email: str, 
     password: str, 
@@ -65,9 +72,6 @@ async def fetch_emails_from(
     limit: int = 10, 
     from_old: bool = False, 
     ):
-
-    if aioimaplib is None:
-        raise ImportError("fetch_emails_from aioimaplib required")
 
 
     client = aioimaplib.IMAP4_SSL(host=provider.host, port=provider.port)

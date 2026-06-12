@@ -1,32 +1,39 @@
 from typing import Union, Optional, overload
-from phonenumbers import (
-    parse, format_number,  
-    region_code_for_country_code, 
-    region_code_for_number, 
-    country_code_for_valid_region, 
-    PhoneNumberFormat, 
-    PhoneNumber as PhoneNumberObj, 
-    UNKNOWN_REGION, 
-)
+
+try:
+    from phonenumbers import (
+        parse, format_number,  
+        region_code_for_country_code, 
+        region_code_for_number, 
+        country_code_for_valid_region, 
+        PhoneNumberFormat, 
+        PhoneNumber as PhoneNumberObj, 
+        UNKNOWN_REGION, 
+    )
+except ImportError:
+    pass
 
 from .typings import PhoneNumber, RegionCode, _True
 from .text_tools import clean_spaces, to_str
 from .validate_tools import is_rc, validation
 from .callable_tools import safe_call
 
+from ._optional import _optional_import
+
 
 @overload
 def parse_phone(
-    phone_number: Union[PhoneNumber, int, PhoneNumberObj], 
+    phone_number: Union[PhoneNumber, int, "PhoneNumberObj"], 
     clean: bool = True, 
     ) -> PhoneNumber: ...
 @overload
 def parse_phone(
-    phone_number: Union[PhoneNumber, int, PhoneNumberObj], 
+    phone_number: Union[PhoneNumber, int, "PhoneNumberObj"], 
     clean: bool = True, 
     *, 
     return_numobj: _True
-    ) -> PhoneNumberObj: ...
+    ) -> "PhoneNumberObj": ...
+@_optional_import(("phonenumbers", "phone"))
 def parse_phone(
     phone_number, 
     clean = True, 
@@ -50,23 +57,26 @@ def parse_phone(
     
     return phone_number if return_numobj else format_number(phone_number, PhoneNumberFormat.E164)
     
-
+@_optional_import(("phonenumbers", "phone"))
 def cc_from_rc(rc: RegionCode) -> int:
     return country_code_for_valid_region(rc.lower())
-    
-def cc_from_phone(phone_number: Union[PhoneNumber, PhoneNumberObj]) -> int:
+
+@_optional_import(("phonenumbers", "phone"))
+def cc_from_phone(phone_number: Union[PhoneNumber, "PhoneNumberObj"]) -> int:
     if not isinstance(phone_number, PhoneNumberObj):
         phone_number = parse_phone(phone_number, return_numobj=True)
         
     return phone_number.country_code
-    
+
+@_optional_import(("phonenumbers", "phone"))
 def rc_from_cc(cc: int) -> RegionCode:
     rc = region_code_for_country_code(cc)
     validation(rc != UNKNOWN_REGION, "invalid country code %s" % cc)
     
     return rc.lower()
 
-def rc_from_phone(phone_number: Union[PhoneNumber, PhoneNumberObj]) -> RegionCode:
+@_optional_import(("phonenumbers", "phone"))
+def rc_from_phone(phone_number: Union[PhoneNumber, "PhoneNumberObj"]) -> RegionCode:
     if not isinstance(phone_number, PhoneNumberObj):
         phone_number = parse_phone(phone_number, return_numobj=True)
         
@@ -75,8 +85,8 @@ def rc_from_phone(phone_number: Union[PhoneNumber, PhoneNumberObj]) -> RegionCod
     
     return rc.lower()
         
-    
-def resolve_rc(value: Union[RegionCode, PhoneNumber, PhoneNumberObj, int]) -> Optional[RegionCode]:
+@_optional_import(("phonenumbers", "phone"))
+def resolve_rc(value: Union[RegionCode, PhoneNumber, "PhoneNumberObj", int]) -> Optional[RegionCode]:
     if isinstance(value, int):
         return rc_from_cc(value)
     elif isinstance(value, PhoneNumberObj):

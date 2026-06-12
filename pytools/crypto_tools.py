@@ -1,17 +1,23 @@
 from typing import Union, Callable, overload
 
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM, AESSIV
+try:
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM, AESSIV
+except ImportError:
+    pass
 
 
 from .typings import _T
 from .errors import ValidationError
 
+from ._optional import _optional_import
+
 import os
 
 
+@_optional_import(("cryptography", "crypto"))
 def _derive_key(master_key: str, salt: bytes) -> bytes:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -22,6 +28,7 @@ def _derive_key(master_key: str, salt: bytes) -> bytes:
     )
     return kdf.derive(master_key.encode())
 
+@_optional_import(("cryptography", "crypto"))
 def _drive_deterministic_key(password: str) -> bytes:
     salt = hashes.Hash(hashes.SHA256(), backend=default_backend())
     salt.update(password.encode())
@@ -37,6 +44,7 @@ def _drive_deterministic_key(password: str) -> bytes:
     return kdf.derive(password.encode())
 
 
+@_optional_import(("cryptography", "crypto"))
 def encrypt(data: Union[bytes, str], password: str) -> bytes:
     if isinstance(data, str):
         data = data.encode()
@@ -56,6 +64,7 @@ def encrypt(data: Union[bytes, str], password: str) -> bytes:
 def decrypt(encrypted_data: bytes, password: str, data_resolver: None = None) -> bytes: ...
 @overload
 def decrypt(encrypted_data: bytes, password: str, data_resolver: Callable[[bytes], _T]) -> _T: ...
+@_optional_import(("cryptography", "crypto"))
 def decrypt(encrypted_data: bytes, password: str, data_resolver=None):
     if len(encrypted_data) < 29: 
         raise ValidationError("Data length is too short")
@@ -76,7 +85,7 @@ def decrypt(encrypted_data: bytes, password: str, data_resolver=None):
 
     return data_bytes if data_resolver is None else data_resolver(data_bytes)
 
-
+@_optional_import(("cryptography", "crypto"))
 def d_encrypt(data: Union[bytes, str], password: str) -> bytes:
     if isinstance(data, str):
         data = data.encode()
@@ -90,6 +99,7 @@ def d_encrypt(data: Union[bytes, str], password: str) -> bytes:
 def d_decrypt(encrypted_data: bytes, password: str, data_resolver: None = None) -> bytes: ...
 @overload
 def d_decrypt(encrypted_data: bytes, password: str, data_resolver: Callable[[bytes], _T]) -> _T: ...
+@_optional_import(("cryptography", "crypto"))
 def d_decrypt(encrypted_data: bytes, password: str, data_resolver=None):
     
     aessiv = AESSIV(_drive_deterministic_key(password))
