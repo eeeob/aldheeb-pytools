@@ -39,7 +39,8 @@ pip install aldheeb-pytools
 | `mongo` | `pymongo` | MongoDB utilities |
 | `phone` | `phonenumbers` | Phone number parsing |
 | `country` | `pycountry`, `phonenumbers` | Country info & region codes |
-| `tg` | `kurigram`, `aiologic` | Telegram automation |
+| `tg` | `kurigram` | Telegram automation |
+| `aiologic` | `aiologic` | aio automation
 | `imap` | `aioimaplib` | IMAP email fetching |
 | `bs4` | `beautifulsoup4` | HTML email parsing |
 | `full` | everything above | All features |
