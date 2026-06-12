@@ -1,10 +1,14 @@
 from typing import Optional, Union, IO, Callable
 from pathlib import Path
+
 from dataclasses import dataclass
-from logging import getLogger, LogRecord, Logger, Handler, FileHandler, StreamHandler, Formatter
+from logging import (
+    getLogger, Formatter, 
+    LogRecord, Logger, 
+    Handler, FileHandler, StreamHandler, 
+)
 
-from .errors import ValidationError
-
+from ..errors import ValidationError
 
 @dataclass(slots=True, kw_only=True)
 class _LoggerModel:
@@ -44,6 +48,7 @@ class LogHandlerOptions(_LoggerModel):
 class LoggerOptions(_LoggerModel):
     propagate: Optional[bool] = None
     reset_level: Optional[bool] = None
+
 
 
 

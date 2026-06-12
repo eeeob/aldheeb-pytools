@@ -2,6 +2,11 @@ from typing import Optional
 from enum import Enum, StrEnum, auto, IntEnum
 
 
+class TriggerOn(StrEnum):
+    SUCCESS = auto()
+    ERROR = auto()
+    ALWAYS = auto()
+
 class TgMessageLength(IntEnum):
     TEXT = 4096
     CAPTION = 1024
@@ -53,6 +58,7 @@ __all__ = (
     "ImapEmailProvider", 
     "PlatformDevice", 
     "TgMessageLength", 
-    "TimeUnit", 
+    "TimeUnit", "TriggerOn", 
     "IMAP_DOMAIN_TO_PROVIDER", 
+
 )
