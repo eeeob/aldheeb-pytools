@@ -1,13 +1,19 @@
 
 from typing import (
-    Any, Union, 
-    TypeIs, Optional, 
+    Any, Union, Optional, 
     Mapping, Type, Required, 
     NotRequired, Dict, Never, 
     overload, get_args, 
     get_origin, get_type_hints, 
     is_typeddict, 
 )
+
+import sys
+
+if sys.version_info >= (3, 13):
+    from typing import TypeIs
+else:
+    from typing_extensions import TypeIs
 
 from types import UnionType
 from enum import EnumType
