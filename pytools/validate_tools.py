@@ -168,7 +168,19 @@ def is_email(email: Any) -> TypeIs[str]:
     and bool(EMAIL_PATTERN.fullmatch(email))
 
 def iscoroutinefunction_wrapped(f):
-    return inspect.iscoroutinefunction(inspect.unwrap(f))
+    is_coro = False
+
+    def _stop(func):
+        nonlocal is_coro
+
+        if inspect.iscoroutinefunction(func):
+            is_coro = True
+            return True
+        
+        return False
+
+    unwrapped = inspect.unwrap(f, stop=_stop)
+    return is_coro or inspect.iscoroutinefunction(unwrapped)
 
 @_optional_import(("kurigram", "tg"))
 async def is_valid_tg_app(api_id, api_hash) -> bool:
