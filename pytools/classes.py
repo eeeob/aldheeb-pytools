@@ -1,6 +1,6 @@
 from typing import (
     Any, Callable, TYPE_CHECKING, 
-    Coroutine, Dict, Optional
+    Coroutine, Dict, Optional, Generic
 )
 
 from types import MethodType
@@ -29,6 +29,7 @@ from .typings import (
 )
 from .async_tools import to_thread
 
+import weakref
 import logging
 import threading
 import asyncio
@@ -271,6 +272,56 @@ else:
     MongoIndex = _unavailable_class("MongoIndex", ("pymongo", "mongo"))
 
 
+class LazyMap(Generic[_KT, _VT]):
+    """A generic lazy factory map backed by weak references.
+
+    Creates a value for each key on first access via the provided
+    factory, and automatically discards it once no strong references
+    remain (i.e. tied to last access lifetime).
+
+    Args:
+        factory: A zero-argument callable that produces a new value.
+                 Determines both the type and behaviour of stored values.
+
+    Examples:
+        from pytools import LazyMap
+        import asyncio
+
+
+        locks = LazyMap(asyncio.Lock)
+        async with locks("user:42"):
+            ...
+
+        caches = LazyMap(dict)
+        caches["ns"]["key"] = 1
+    """
+
+    def __init__(self, factory: Callable[[], _VT]) -> None:
+        self._factory = factory
+        self._store: weakref.WeakValueDictionary[_KT, _VT] = weakref.WeakValueDictionary()
+        
+
+    def get(self, key: _KT) -> _VT:
+        """Return the value for *key*, creating one if it does not exist."""
+        try:
+            return self._store[key]
+        except KeyError:
+            value = self._factory()
+            self._store[key] = value
+            return value
+
+    __call__ = get
+    __getitem__ = get
+
+    def __contains__(self, key: _KT) -> bool:
+        """Return True if *key* has a live value in the map."""
+        return key in self._store
+
+    def __len__(self) -> int:
+        """Return the number of currently live entries."""
+        return len(self._store)
+
+
 UTC3LogFormatter = type(
     "UTC3LogFormatter", 
     (logging.Formatter, ), 
@@ -285,4 +336,5 @@ __all__ = (
     "MongoIndex", 
     "UTC3LogFormatter", 
     "hybridmethod", 
+    "LazyMap", 
 )
