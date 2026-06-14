@@ -1,6 +1,6 @@
 from typing import (
     Dict, Self, Any, ClassVar, List, FrozenSet, 
-    get_args, get_type_hints
+    get_args, get_type_hints, get_origin
 )
 
 from enum import EnumType
@@ -32,11 +32,18 @@ class BaseDataClass(FrozenClassAttrs):
         cls.__private_field_names__ = private = []
 
         
+        def _deep_extract(value):
+            if isinstance(value, EnumType):
+                yield value
+            elif (origin := get_origin(value)) is not None:
+                for a in (*(get_args(value) or ()), origin):
+                    yield from _deep_extract(a)
+
+
         cls.__enums_types__ = to_frozenset(
             flat_cont(
-                (get_args(t) or t) 
+                _deep_extract(t)
                 for t in get_type_hints(cls).values()
-                if any(isinstance(st, EnumType) for st in to_frozenset(get_args(t) or t))
                 )
             )
 
