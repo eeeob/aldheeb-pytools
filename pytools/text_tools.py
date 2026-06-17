@@ -21,7 +21,7 @@ import re
 def to_str(value: _T) -> Union[str, _T]:
     return (
         value 
-        if isinstance(value, (bool, None)) or is_container(value) 
+        if value is None or isinstance(value, bool) or is_container(value) 
         else str(value)
     )
 
