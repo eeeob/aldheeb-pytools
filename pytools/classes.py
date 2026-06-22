@@ -1,11 +1,11 @@
 from typing import (
     Any, Callable, TYPE_CHECKING, 
     Coroutine, Dict, Optional, Generic, 
-    overload, Type, TypeVar, Self, 
+    overload, Type, TypeVar, 
 )
 
 from types import MethodType
-
+from functools import partial
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import Future, InvalidStateError
 
@@ -37,12 +37,35 @@ import asyncio
 
 
 _C = TypeVar("_C")
-
-
 class classproperty(Generic[_C, _T]):
+    @overload
+    def __new__(
+        cls,
+        fget: Callable[[Type[_C]], _T],
+        *,
+        doc: Optional[str] = None,
+        cached: bool = False
+    ) -> "classproperty[_C, _T]": ...
+    @overload
+    def __new__(
+        cls,
+        fget: None = None,
+        *,
+        doc: Optional[str] = None, 
+        cached: bool = False 
+    ) -> Callable[
+        [Callable[[Type[_C]], _T]], "classproperty[_C, _T]"
+        ]: ...
+    def __new__(cls, fget = None, *, doc = None, cached = False): 
+        if fget is None:
+            return partial(cls, doc=doc, cached=cached)
+
+        return super().__new__(cls)
+
     def __init__(
-        self,
+        self, 
         fget: Callable[[Type[_C]], _T], 
+        *, 
         doc: Optional[str] = None, 
         cached: bool = False 
     ) -> None:
@@ -57,13 +80,13 @@ class classproperty(Generic[_C, _T]):
         self.__doc__ = doc
 
     @overload
-    def __get__(self, _: Any, owner: None) -> Self: ...
+    def __get__(self, _: Any, owner: None) -> "classproperty[_C, _T]": ...
     @overload
     def __get__(self, _: Any, owner: Type[_C]) -> _T: ...
     def __get__(self, _, owner):
         if owner is None:
             return self
-        
+
         if not self.cached:
             return self.fget(owner)
 
@@ -74,14 +97,7 @@ class classproperty(Generic[_C, _T]):
             self._cache[owner] = value
             return value
 
-    def getter(self, fget: Callable[[Type[_C]], _T]) -> Self:
-        self.fget = fget
-        self._cache.clear()
-        return self
 
-class cached_classproperty(classproperty[_C, _T]):
-    def __init__(self, fget: Callable[[Type[_C]], _T], doc: Optional[str] = None) -> None:
-        super().__init__(fget, doc=doc, cached=True)
 
 if TYPE_CHECKING:
     hybridmethod = classmethod
@@ -384,5 +400,4 @@ __all__ = (
     "hybridmethod", 
     "LazyMap", 
     "classproperty", 
-    "cached_classproperty", 
 )
