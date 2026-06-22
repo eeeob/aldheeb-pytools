@@ -1,7 +1,7 @@
 from typing import (
     Any, Callable, TYPE_CHECKING, 
     Coroutine, Dict, Optional, Generic, 
-    overload, Type, TypeVar, 
+    overload, Type, TypeVar, Self, 
 )
 
 from types import MethodType
@@ -40,25 +40,48 @@ _C = TypeVar("_C")
 
 
 class classproperty(Generic[_C, _T]):
-    def __init__(self, fget: Callable[[Type[_C]], _T], doc: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        fget: Callable[[Type[_C]], _T], 
+        doc: Optional[str] = None, 
+        cached: bool = False 
+    ) -> None:
+        
+        self.fget = fget
+        self.cached = cached
+        self._cache: Dict[Type[_C], _T] = {}
+
         if doc is None:
             doc = fget.__doc__
 
-        self.fget = fget
         self.__doc__ = doc
-    
 
     @overload
-    def __get__(self, _: None, owner: Type[_C]) -> _T: ...
+    def __get__(self, _: Any, owner: None) -> Self: ...
     @overload
-    def __get__(self, _: _C, owner: Type[_C]) -> _T: ...
-    def __get__(self, _, owner) -> _T:
-        return self.fget(owner)
+    def __get__(self, _: Any, owner: Type[_C]) -> _T: ...
+    def __get__(self, _, owner):
+        if owner is None:
+            return self
+        
+        if not self.cached:
+            return self.fget(owner)
 
-    def getter(self, fget: Callable[[Type[_C]], _T]) -> "classproperty[_C, _T]":
+        try:
+            return self._cache[owner]
+        except KeyError:
+            value = self.fget(owner)
+            self._cache[owner] = value
+            return value
+
+    def getter(self, fget: Callable[[Type[_C]], _T]) -> Self:
         self.fget = fget
+        self._cache.clear()
         return self
 
+class cached_classproperty(classproperty[_C, _T]):
+    def __init__(self, fget: Callable[[Type[_C]], _T], doc: Optional[str] = None) -> None:
+        super().__init__(fget, doc=doc, cached=True)
 
 if TYPE_CHECKING:
     hybridmethod = classmethod
@@ -361,4 +384,5 @@ __all__ = (
     "hybridmethod", 
     "LazyMap", 
     "classproperty", 
+    "cached_classproperty", 
 )
