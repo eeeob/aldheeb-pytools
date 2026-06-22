@@ -6,14 +6,14 @@ from typing import (
 
 from .typings import (
     Container, ContainerWithoutMapping, 
-    MaybeCoroutineCallable, 
     NestedContainer, 
-    _KT, _VT, _T, _True
+    _KT, _VT, _T
 )
+
+from .enums import TgMessageLength
 
 from .validate_tools import is_mapping, is_container
 from .iter_tools import to_list, flat_cont
-from .async_tools import gather_helper, maybe_awaitable
 
 import re
 
@@ -49,6 +49,32 @@ def split_part(
         return value
     except IndexError:
         return value
+
+def chunk_text(text: str, max_length: int = TgMessageLength.TEXT) -> List[str]:
+    if len(text) <= max_length:
+        return [text]
+
+    chunks = []
+    remaining = text
+
+    while remaining:
+        chunk = remaining[:max_length]
+
+        if len(remaining) <= max_length:
+            remaining = ""
+        elif (last_newline := chunk.rfind('\n')) > 0:
+            chunk = chunk[:last_newline]
+            remaining = remaining[last_newline + 1:]
+        elif (last_space := chunk.rfind(" ")) > len(chunk) // 10:
+            chunk = chunk[:last_space]
+            remaining = remaining[last_space + 1:]
+        else:
+            remaining = remaining[max_length:]
+
+        if chunk.strip():
+            chunks.append(chunk.strip())
+
+    return chunks
 
 def format_exc_tree(exc: BaseException) -> str:
     def iter_exc():
@@ -132,115 +158,79 @@ def numbering(
 
 
 @overload
-async def smart_split(
-    text: "NestedContainer[str]", 
+def smart_split(
+    text: NestedContainer[str], 
     indexing: int, 
-    part_resolver: MaybeCoroutineCallable[[str], Optional[_T]], 
+    part_resolver: Callable[[str], _T], 
+    strip: bool = ..., 
+    remove_spaces: bool = ..., 
+    max_split: int = ..., 
     *,
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]], 
-) -> Optional[_T]: ...
-@overload
-async def smart_split(
-    text: "NestedContainer[str]", 
-    indexing: int, 
-    part_resolver: MaybeCoroutineCallable[[str], Optional[_T]], 
-    without_none: _True, 
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    *, 
-    separator: Union[str, MaybeCoroutineCallable[[], str]], 
+    separator: Union[str, Callable[[], str]], 
 ) -> _T: ...
 @overload
-async def smart_split(
-    text: "NestedContainer[str]",
+def smart_split(
+    text: NestedContainer[str],
     indexing: int, 
     *,
-    strip: bool = ...,
+    strip: bool = ..., 
     remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
+    max_split: int = ...,  
+    separator: Union[str, Callable[[], str]],
 ) -> str: ...
 @overload
-async def smart_split(
-    text: "NestedContainer[str]",
-    indexing: slice,
-    part_resolver: MaybeCoroutineCallable[[str], Optional[_T]], 
-    without_none: _True, 
-    strip: bool = ...,
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    *,
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
-) -> List[_T]: ...
-@overload
-async def smart_split(
-    text: "NestedContainer[str]",
-    indexing: slice,
-    part_resolver: MaybeCoroutineCallable[[str], Optional[_T]], 
-    *,
-    strip: bool = ...,
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
-) -> List[Optional[_T]]: ...
-@overload
-async def smart_split(
-    text: "NestedContainer[str]",
-    *, 
-    part_resolver: MaybeCoroutineCallable[[str], Optional[_T]], 
-    without_none: _True, 
+def smart_split(
+    text: NestedContainer[str], 
+    indexing: slice, 
+    part_resolver: Callable[[str], _T], 
     strip: bool = ..., 
     remove_spaces: bool = ..., 
     max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
+    *,
+    separator: Union[str, Callable[[], str]],
 ) -> List[_T]: ...
 @overload
-async def smart_split(
-    text: "NestedContainer[str]",
+def smart_split(
+    text: NestedContainer[str], 
+    indexing: slice, 
     *, 
-    part_resolver: MaybeCoroutineCallable[[str], Optional[_T]], 
     strip: bool = ..., 
     remove_spaces: bool = ..., 
     max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
-) -> List[Optional[_T]]: ...
-@overload
-async def smart_split(
-    text: "NestedContainer[str]",
-    *,
-    strip: bool = ...,
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
+    separator: Union[str, Callable[[], str]],
 ) -> List[str]: ...
 @overload
-async def smart_split(
-    text: "NestedContainer[str]",
-    indexing: slice,
-    *,
-    strip: bool = ...,
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
-    separator: Union[str, MaybeCoroutineCallable[[], str]],
-) -> List[str]: ...
-async def smart_split(
-    text: "NestedContainer[str]", 
-    indexing: Optional[Union[slice, int]] = None, 
-    part_resolver: Optional[MaybeCoroutineCallable[[str], Optional[_T]]] = None, 
-    without_none: bool = False, 
-    strip: bool = False, 
-    remove_spaces: bool = False, 
-    max_split: int = -1, 
+def smart_split(
+    text: NestedContainer[str], 
     *, 
-    separator: Union[str, MaybeCoroutineCallable[[], str]], 
+    part_resolver: Callable[[str], _T], 
+    strip: bool = ..., 
+    remove_spaces: bool = ..., 
+    max_split: int = ..., 
+    separator: Union[str, Callable[[], str]],
+) -> List[_T]: ...
+@overload
+def smart_split(
+    text: NestedContainer[str], 
+    *, 
+    strip: bool = ..., 
+    remove_spaces: bool = ..., 
+    max_split: int = ..., 
+    separator: Union[str, Callable[[], str]],
+) -> List[str]: ...
+def smart_split(
+    text: NestedContainer[str], 
+    indexing = None, 
+    part_resolver = None, 
+    strip = False, 
+    remove_spaces = False, 
+    max_split = -1, 
+    *, 
+    separator, 
     ):
 
-    if not isinstance(separator, str):
-        separator = await maybe_awaitable(separator)
+    if callable(separator):
+        separator = separator()
 
     texts = text.split(separator, max_split) if isinstance(text, str) else flat_cont(text)
 
@@ -254,12 +244,8 @@ async def smart_split(
             ]
     
     if part_resolver is not None:
-        texts = [
-            v for v in await gather_helper(maybe_awaitable(part_resolver, t) for t in texts)
-            if (not without_none or v is not None)
-            ]
+        texts = [part_resolver(t) for t in texts]
 
-    
     return texts[0] if isinstance(indexing, int) else texts
 
 
@@ -285,5 +271,6 @@ __all__ = (
     "numbering",
     "format_exc_tree", 
     "smart_split", 
+    "chunk_text", 
     
 )

@@ -1,6 +1,7 @@
 from typing import (
     Any, Callable, TYPE_CHECKING, 
-    Coroutine, Dict, Optional, Generic
+    Coroutine, Dict, Optional, Generic, 
+    overload, Type, TypeVar, 
 )
 
 from types import MethodType
@@ -35,6 +36,28 @@ import threading
 import asyncio
 
 
+_C = TypeVar("_C")
+
+
+class classproperty(Generic[_C, _T]):
+    def __init__(self, fget: Callable[[Type[_C]], _T], doc: Optional[str] = None) -> None:
+        if doc is None:
+            doc = fget.__doc__
+
+        self.fget = fget
+        self.__doc__ = doc
+    
+
+    @overload
+    def __get__(self, _: None, owner: Type[_C]) -> _T: ...
+    @overload
+    def __get__(self, _: _C, owner: Type[_C]) -> _T: ...
+    def __get__(self, _, owner) -> _T:
+        return self.fget(owner)
+
+    def getter(self, fget: Callable[[Type[_C]], _T]) -> "classproperty[_C, _T]":
+        self.fget = fget
+        return self
 
 
 if TYPE_CHECKING:
@@ -337,4 +360,5 @@ __all__ = (
     "UTC3LogFormatter", 
     "hybridmethod", 
     "LazyMap", 
+    "classproperty", 
 )

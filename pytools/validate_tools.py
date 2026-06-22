@@ -1,11 +1,8 @@
 
 from typing import (
     Any, Union, Optional, 
-    Mapping, Type, Required, 
-    NotRequired, Dict, Never, 
-    overload, get_args, 
-    get_origin, get_type_hints, 
-    is_typeddict, 
+    Mapping, Type, Never, 
+    overload, Tuple, 
 )
 
 import sys
@@ -15,8 +12,13 @@ if sys.version_info >= (3, 13):
 else:
     from typing_extensions import TypeIs
 
-from types import UnionType
-from enum import EnumType
+from typeguard import (
+    check_type, check_type_internal, 
+    checker_lookup_functions, 
+    TypeCheckMemo, TypeCheckError, 
+    CollectionCheckStrategy, 
+)
+from enum import EnumType, Enum
 
 try:
     from aioimaplib import aioimaplib
@@ -242,148 +244,53 @@ def any_deep(*values: NestedContainer[Any]) -> bool:
     from .iter_tools import flat_cont
     return any(flat_cont(values))
 
-def validate_type(value: Any, annotation: Any) -> None:
-    if isinstance(annotation, EnumType):
+
+def checker_lookup(origin_type: Any, *_):
+    def validate_enum(value, origin_type: Type[Enum], *_):
         try:
-            annotation(value)
+            origin_type(value)
         except (ValueError, TypeError) as exc:
-            raise ValidationError(f"expected {annotation.__name__}, got {value!r}") from exc
+            raise TypeCheckError(str(exc)) from exc
 
-        return
-
-    if is_typeddict(annotation):
-        return validate_typed_dict(value, annotation)
+    def validate_container(value, origin_type, args: Tuple[Any], memo: TypeCheckMemo, *_):
+        if not is_container(value):
+            raise TypeCheckError("is not container")
         
-    origin = get_origin(annotation)
-
-    if origin is not None:
-        args = get_args(annotation)
-
-        if origin in (Required, NotRequired):
-            return validate_type(value, args[0])
-            
-        if origin in (Union, UnionType):
-            union_errors = []
-
-            for arg in args:
-                try:
-                    return validate_type(value, arg)
-                except ValidationError as exc:
-                    union_errors.append(str(exc))
-
-            raise ValidationError(
-                f"value {value!r} does not match any union type:\n" 
-                + "\n".join(f"- {err}" for err in union_errors)
-            )
-
-        elif (
-            origin is tuple
-            and len(args) > 1
-            and args[1] is not Ellipsis
-        ):
-    
-            validation(isinstance(value, tuple), f"expected tuple, got {type(value).__name__}")
-            validation(len(value) == len(args), f"expected tuple length {len(args)}, got {len(value)}")
-            
-            for index, (item, ann) in enumerate(zip(value, args)):
-                try:
-                    validate_type(item, ann)
-                except ValidationError as exc:
-                    raise ValidationError(f"tuple index {index}: {exc}") from exc
-
-
-        elif is_sub_mapping(origin) and args:
-            validation(isinstance(value, origin), f"expected {origin.__name__}, got {type(value).__name__}")
-
-            for k, v in value.items():
-                try:
-                    validate_type(k, args[0])
-                except ValidationError as exc:
-                    raise ValidationError(f"invalid mapping key {k!r}: {exc}") from exc
-
-                try:
-                    validate_type(v, args[1])
-                except ValidationError as exc:
-                    raise ValidationError(f"invalid value for key {k!r}: {exc}") from exc
-
-        elif is_sub_container(origin) and args:
-            validation(isinstance(value, origin), f"expected {origin.__name__}, got {type(value).__name__}")
-
-            for index, item in enumerate(value):
-                try:
-                    validate_type(item, args[0])
-                except ValidationError as exc:
-                    raise ValidationError(f"container index {index}: {exc}") from exc
-
-        else:
-            annotation = args[0]
-            origin = None
-        
-        if origin is not None:
+        if not args or args == (Any,):
             return
 
-    if annotation is Any:
-        return
+        samples = memo.config.collection_check_strategy.iterate_samples(value)
+
+        for i, v in enumerate(samples):
+            try:
+                check_type_internal(v, args[0], memo)
+            except TypeCheckError as exc:
+                exc.append_path_element(f"item {i}")
+                raise
     
-    if annotation is None:
-        return validation(value is None, "expected None")
+    if isinstance(origin_type, EnumType):
+        return validate_enum
     
-    if isinstance(annotation, type):
-        return validation(isinstance(value, annotation), f"expected {annotation.__name__}, got {type(value).__name__}")
+    if is_sub_container(origin_type):
+        return validate_container
     
-    raise TypeError(f"unsupported annotation: {annotation!r}")
+checker_lookup_functions.append(checker_lookup)
 
-def validate_typed_dict(data: Dict, scheme: Type) -> None:
-    validation(
-        is_mapping(data),
-        f"expected mapping, got {type(data).__name__}"
-    )
-
-    validation(
-        is_typeddict(scheme),
-        f"{scheme!r} is not a TypedDict"
-    )
-
-    hints = get_type_hints(scheme, include_extras=True)
-
-    name = scheme.__name__
-    is_total = scheme.__total__
-
-    errors = []
-
-    for key, annotation in hints.items():
-        if key not in data:
-            origin = get_origin(annotation)
-
-            is_required = (
-                (is_total and origin is not NotRequired)
-                or
-                (not is_total and origin is Required)
+def validate_type(value: Any, annotation: Any) -> None:
+    try:
+        return check_type(
+            value, annotation, 
+            typecheck_fail_callback=None, 
+            collection_check_strategy=CollectionCheckStrategy.ALL_ITEMS
             )
+    except TypeCheckError as exc:
+        raise ValidationError(str(exc)) from exc
 
-            if is_required:
-                errors.append(
-                    f"{name}.{key}: missing required key"
-                )
 
-            continue
 
-        try:
-            validate_type(data[key], annotation)
-        except ValidationError as exc:
-            errors.append(
-                f"{name}.{key}: {exc}"
-            )
 
-    if errors:
-        raise ValidationError(
-            "typed dict validation failed:\n"
-            + "\n".join(
-                f"  • {error}"
-                for error in errors
-            )
-        )
-    
+
+
 
     
 
@@ -410,7 +317,6 @@ __all__ = (
     "is_sub_mapping", 
     "is_sub_container", 
     "validate_type", 
-    "validate_typed_dict", 
     "iscoroutinefunction_wrapped", 
     
 )
