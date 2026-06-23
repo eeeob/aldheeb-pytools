@@ -41,7 +41,7 @@ dev = [
 aiologic = ["aiologic>=0.16.0"]
 mongo = ["pymongo>=4.16.0"]
 country = ["pycountry>=26.2.16", "phonenumbers>=9.0.21"]
-crypto = ["cryptography>=46.0.4"]
+crypto = ["cryptography>=40.0.0"]
 bs4 = ["beautifulsoup4>=4.14.3"]
 imap = ["aioimaplib>=2.0.1"]
 phone = ["phonenumbers>=9.0.21"]
