@@ -334,54 +334,37 @@ else:
     MongoIndex = _unavailable_class("MongoIndex", ("pymongo", "mongo"))
 
 
-class LazyMap(Generic[_KT, _VT]):
-    """A generic lazy factory map backed by weak references.
-
-    Creates a value for each key on first access via the provided
-    factory, and automatically discards it once no strong references
-    remain (i.e. tied to last access lifetime).
-
-    Args:
-        factory: A zero-argument callable that produces a new value.
-                 Determines both the type and behaviour of stored values.
-
-    Examples:
-        from pytools import LazyMap
-        import asyncio
-
-
-        locks = LazyMap(asyncio.Lock)
-        async with locks("user:42"):
-            ...
-
-        caches = LazyMap(dict)
-        caches["ns"]["key"] = 1
-    """
-
-    def __init__(self, factory: Callable[[], _VT]) -> None:
-        self._factory = factory
-        self._store: weakref.WeakValueDictionary[_KT, _VT] = weakref.WeakValueDictionary()
+class KeyDefaultWeakValueDict(weakref.WeakValueDictionary[_KT, _VT]):
+    def __init__(self, default_factory: Callable[[_KT], _VT]) -> None:
+        if not callable(default_factory):
+            raise TypeError("default_factory must be callable")
         
+        super().__init__()
 
-    def get(self, key: _KT) -> _VT:
-        """Return the value for *key*, creating one if it does not exist."""
+        self.default_factory = default_factory
+
+    def __getitem__(self, key: _KT) -> _VT:
         try:
-            return self._store[key]
+            return super().__getitem__(key)
         except KeyError:
-            value = self._factory()
-            self._store[key] = value
+            value = self.default_factory(key)
+            self[key] = value
             return value
+    
+    __call__ = __getitem__
 
-    __call__ = get
-    __getitem__ = get
 
-    def __contains__(self, key: _KT) -> bool:
-        """Return True if *key* has a live value in the map."""
-        return key in self._store
+class DefaultWeakValueDict(KeyDefaultWeakValueDict[_KT, _VT]):
+    def __init__(self, default_factory: Callable[[], _VT]) -> None:
+        if not callable(default_factory):
+            raise TypeError("default_factory must be callable")
 
-    def __len__(self) -> int:
-        """Return the number of currently live entries."""
-        return len(self._store)
+        def wrapper(_: _KT) -> _VT:
+            return default_factory()
+
+        super().__init__(wrapper)
+
+
 
 
 UTC3LogFormatter = type(
@@ -398,6 +381,7 @@ __all__ = (
     "MongoIndex", 
     "UTC3LogFormatter", 
     "hybridmethod", 
-    "LazyMap", 
+    "KeyDefaultWeakValueDict", 
+    "DefaultWeakValueDict", 
     "classproperty", 
 )

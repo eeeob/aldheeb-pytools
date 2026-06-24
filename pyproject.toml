@@ -38,8 +38,8 @@ dev = [
     "twine<=6.2.0",
 ]
 
-aiologic = ["aiologic>=0.16.0"]
-mongo = ["pymongo>=4.16.0"]
+aiologic = ["aiologic>=0.16"]
+mongo = ["pymongo>=4"]
 country = ["pycountry>=26.2.16", "phonenumbers>=9.0.21"]
 crypto = ["cryptography>=40.0.0"]
 bs4 = ["beautifulsoup4>=4.14.3"]
@@ -48,7 +48,7 @@ phone = ["phonenumbers>=9.0.21"]
 tg = ["kurigram>=2.0.0"]
 
 full = [
-    "aldheeb-pytools[aiologic,mongo,country,crypto,bs4,imap,phone,tg]"
+    "aldheeb-pytools[imap,phone,country,bs4,aiologic,mongo,tg,crypto]"
 ]
 
 [tool.hatch.build.targets.sdist]
