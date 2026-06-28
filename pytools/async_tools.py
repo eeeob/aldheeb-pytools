@@ -79,7 +79,7 @@ async def gather_helper(
 
     results = await asyncio.gather(*flat_cont(coros), return_exceptions=return_exc)
 
-    if log_exc:
+    if log_exc and return_exc:
         for r in results:
             if is_exception(r):
                 log.error("error in gather_helper", exc_info=r)
