@@ -47,7 +47,7 @@ type MaybeAwaitable[**P, R] = Awaitable[R] | MaybeCoroutineCallable[P, R]
 type MaybeContainer[I] = I | "Container[I]"
 
 
-NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType]
+NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType, Awaitable]
 PhoneNumber: TypeAlias = Annotated[str, "Phone number in international format, e.g. +967xxxxxxxxx"]
 RegionCode: TypeAlias = Annotated[str, "يجب ان يكون lower وايضا يجب التاكد من صحته"]
 Number: TypeAlias = Union[int, float]
