@@ -6,7 +6,6 @@ from typing import (
 from enum import EnumType
 from dataclasses import dataclass, fields, asdict, is_dataclass
 
-from ..classes import FrozenClassAttrs
 from ..data_tools import clean_none_values, enum_to_value, value_to_enum
 from ..iter_tools import to_frozenset, flat_cont
     
@@ -16,7 +15,7 @@ import json
 
 
 @dataclass
-class BaseDataClass(FrozenClassAttrs):
+class BaseDataClass:
     __public_field_names__: ClassVar[List[str]]
     __private_field_names__: ClassVar[List[str]] 
     __raw_private_fields__: ClassVar[FrozenSet[str]]
