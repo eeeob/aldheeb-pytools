@@ -113,21 +113,22 @@ def date_utc(
 
 
 @overload
-def time_utc_3(as_int: _False = ...) -> int: ...
+def time_utc_3() -> float: ...
 @overload
-def time_utc_3(as_int: _True) -> float: ...
+def time_utc_3(as_int: _True) -> int: ...
 def time_utc_3(as_int: bool = False):
     stamp_time = time.time() + 60 * 60 * 3
     return int(stamp_time) if as_int else stamp_time
 
 
 @overload
-def time_utc(as_int: _False) -> int: ...
+def time_utc() -> float: ...
 @overload
-def time_utc(as_int: _True) -> float: ...
+def time_utc(as_int: _True) -> int: ...
 def time_utc(as_int: bool = False):
     stamp_time = time.time()
     return int(stamp_time) if as_int else stamp_time
+
 
 
 def arabic_time(date: Optional[datetime] = None) -> str:
