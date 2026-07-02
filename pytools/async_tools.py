@@ -1,4 +1,4 @@
-from typing import Union, List, Callable, Optional, Awaitable, Tuple, overload
+from typing import Union, List, Callable, Optional, Awaitable, overload
 from concurrent.futures import ThreadPoolExecutor
 
 from .typings import NestedContainer, MaybeAwaitable, _True, _False, _P, _T
@@ -63,13 +63,13 @@ async def to_thread(
 async def gather_helper(
     *coros: NestedContainer[Awaitable[_T]],
     log_exc: bool = True,
-) -> Tuple[_T, ...]: ...
+) -> List[_T]: ...
 @overload
 async def gather_helper(
     *coros: NestedContainer[Awaitable[_T]],
     return_exc: _True,
     log_exc: bool = True,
-) -> Tuple[Union[_T, Exception], ...]: ...
+) -> List[Union[_T, Exception]]: ...
 
 async def gather_helper(
     *coros,
