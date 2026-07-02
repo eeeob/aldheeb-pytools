@@ -61,23 +61,23 @@ async def to_thread(
 
 @overload
 async def gather_helper(
-    *coros: NestedContainer[Awaitable[_T]],
+    *awaitables: NestedContainer[Awaitable[_T]],
     log_exc: bool = True,
 ) -> List[_T]: ...
 @overload
 async def gather_helper(
-    *coros: NestedContainer[Awaitable[_T]],
+    *awaitables: NestedContainer[Awaitable[_T]],
     return_exc: _True,
     log_exc: bool = True,
 ) -> List[Union[_T, Exception]]: ...
 
 async def gather_helper(
-    *coros,
+    *awaitables,
     return_exc = False,
     log_exc = True,
     ):
 
-    results = await asyncio.gather(*flat_cont(coros), return_exceptions=return_exc)
+    results = await asyncio.gather(*flat_cont(awaitables), return_exceptions=return_exc)
 
     if log_exc and return_exc:
         for r in results:
@@ -88,53 +88,53 @@ async def gather_helper(
 
 @overload
 async def safe_await(
-    coro: Awaitable[_T],
+    awaitable: Awaitable[_T],
     *,
     log_exc: bool = True,
 ) -> Union[_T, Exception]: ...
 @overload
 async def safe_await(
-    coro: Awaitable[_T],
+    awaitable: Awaitable[_T],
     *,
     return_exc: _False,
     log_exc: bool = True,
 ) -> _T: ...
 @overload
 async def safe_await(
-    coro: NestedContainer[Awaitable[_T]],
+    awaitable: NestedContainer[Awaitable[_T]],
     *,
     log_exc: bool = True,
 ) -> List[Union[_T, Exception]]: ...
 @overload
 async def safe_await(
-    coro: NestedContainer[Awaitable[_T]],
+    awaitable: NestedContainer[Awaitable[_T]],
     *,
     return_exc: _False,
     log_exc: bool = True,
 ) -> List[_T]: ...
 @overload
 async def safe_await(
-    *coro: NestedContainer[Awaitable[_T]],
+    *awaitable: NestedContainer[Awaitable[_T]],
     log_exc: bool = True,
 ) -> List[Union[_T, Exception]]: ...
 @overload
 async def safe_await(
-    *coro: NestedContainer[Awaitable[_T]],
+    *awaitable: NestedContainer[Awaitable[_T]],
     return_exc: _False,
     log_exc: bool = True,
 ) -> List[_T]: ...
 
 async def safe_await(
-    *coros,
+    *awaitables,
     return_exc = True,
     log_exc = True,
     ):
 
     results = []
 
-    for coro in flat_cont(coros):
+    for awaitable in flat_cont(awaitables):
         try:
-            result = await coro
+            result = await awaitable
         except Exception as e:
             if log_exc:
                 log.exception("Error in safe_await")
