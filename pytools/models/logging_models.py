@@ -1,4 +1,4 @@
-from typing import Optional, Union, IO, Callable
+from typing import Optional, Union, Callable
 from pathlib import Path
 
 from dataclasses import dataclass
@@ -9,6 +9,9 @@ from logging import (
 )
 
 from ..errors import ValidationError
+
+
+import io
 
 @dataclass(slots=True, kw_only=True)
 class _LoggerModel:
@@ -29,7 +32,7 @@ class _LoggerModel:
     
 @dataclass(slots=True, kw_only=True)
 class LogHandlerOptions(_LoggerModel):
-    handler: Union[Handler, IO, Path, str]
+    handler: Union[Handler, io.IOBase, Path, str]
     formatter: Optional[Formatter] = None
 
     def resolve_handler(self) -> Union[FileHandler, StreamHandler]:
@@ -37,7 +40,7 @@ class LogHandlerOptions(_LoggerModel):
 
         if isinstance(hdlr, (Path, str)):
             self.handler = FileHandler(hdlr, encoding="utf-8")
-        elif isinstance(hdlr, IO):
+        elif isinstance(hdlr, io.IOBase):
             self.handler = StreamHandler(hdlr)
         elif not isinstance(hdlr, Handler):
             raise ValidationError("Invalid Logger Handler %s" % str(hdlr))
