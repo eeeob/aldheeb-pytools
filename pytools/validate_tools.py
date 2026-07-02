@@ -95,7 +95,6 @@ def is_tg_bot_token(bot_token: Any) -> TypeIs[str]:
     return (
         len(parts) == 2
         and parts[0].isdecimal()
-        and parts[1].isalnum()
     )
 
 @_optional_import(("kurigram", "tg"))
