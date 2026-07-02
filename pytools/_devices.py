@@ -1,5 +1,4 @@
-from __future__ import annotations
-from typing import List, Dict, Type
+from typing import List, Dict
 from .typings import _T
 
 import hashlib
@@ -39,7 +38,7 @@ class SystemInfo:
         pass
 
     @classmethod
-    def RandomDevice(cls: Type[SystemInfo], unique_id: str = None) -> DeviceInfo:
+    def RandomDevice(cls, unique_id: str = None) -> DeviceInfo:
         hash_id = cls._strtohashid(unique_id)
         return cls._RandomDevice(hash_id)
 
@@ -188,7 +187,7 @@ class WindowsDevice(GeneralDesktopDevice):
     deviceList: List[DeviceInfo] = []
 
     @classmethod
-    def __gen__(cls: Type[WindowsDevice]) -> None:
+    def __gen__(cls) -> None:
 
         if len(cls.deviceList) == 0:
 
@@ -208,7 +207,7 @@ class LinuxDevice(GeneralDesktopDevice):
     deviceList: List[DeviceInfo] = []
 
     @classmethod
-    def __gen__(cls: Type[LinuxDevice]) -> None:
+    def __gen__(cls) -> None:
 
         if len(cls.system_versions) == 0:
             # https://github.com/desktop-app/lib_base/blob/master/base/platform/linux/base_info_linux.cpp#L129
@@ -397,7 +396,7 @@ class macOSDevice(GeneralDesktopDevice):
     deviceList: List[DeviceInfo] = []
 
     @classmethod
-    def __gen__(cls: Type[macOSDevice]) -> None:
+    def __gen__(cls) -> None:
 
         if len(cls.deviceList) == 0:
 
@@ -565,7 +564,7 @@ class AndroidDevice(SystemInfo):
         return sdk_devices[device_index]
 
     @classmethod
-    def __gen__(cls: Type["AndroidDevice"]) -> None:
+    def __gen__(cls) -> None:
 
         if len(cls.deviceList) == 0:
             cls.device_models = []
@@ -704,7 +703,7 @@ class iOSDeivce(SystemInfo):
     deviceList: List[DeviceInfo] = []
 
     @classmethod
-    def __gen__(cls: Type[iOSDeivce]) -> None:
+    def __gen__(cls) -> None:
 
         if len(cls.deviceList) == 0:
             results: List[DeviceInfo] = []
