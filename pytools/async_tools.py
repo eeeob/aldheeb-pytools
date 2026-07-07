@@ -10,9 +10,32 @@ import functools
 import logging
 import contextvars
 import inspect
+import traceback
 
 
 log = logging.getLogger(__file__)
+
+
+def _log_exc(
+    header: Optional[str],
+    caller_stack: List[traceback.FrameSummary],
+    exc: BaseException,
+    index: Optional[int] = None,
+) -> None:
+    exc_trace = traceback.format_exception(type(exc), exc, exc.__traceback__)
+    caller_trace = traceback.format_list(caller_stack)
+
+    if header is None:
+        header = ""
+
+    if index is not None:
+        header = f"{header} [awaitable index={index}]" if header else f"[awaitable index={index}]"
+
+    log.error(
+        "%s\n%s", 
+        header, 
+        "".join(caller_trace) + "".join(exc_trace)
+    )
 
 
 @overload
@@ -41,7 +64,8 @@ async def to_thread(
     return_exc = False, 
     **kwargs,
     ):
-    
+    caller_stack = traceback.extract_stack()[:-1]
+
     loop = asyncio.get_running_loop()
     ctx = contextvars.copy_context()
     func = functools.partial(ctx.run, func, *args, **kwargs)
@@ -51,7 +75,7 @@ async def to_thread(
         return await loop.run_in_executor(executor, func)
     except Exception as e:
         if log_exc:
-            log.exception("error in to_thread")
+            _log_exc("error in to_thread", caller_stack, e)
         
         if return_exc:
             return e
@@ -77,12 +101,14 @@ async def gather_helper(
     log_exc = True,
     ):
 
+    caller_stack = traceback.extract_stack()[:-1]
+
     results = await asyncio.gather(*flat_cont(awaitables), return_exceptions=return_exc)
 
     if log_exc and return_exc:
-        for r in results:
+        for i, r in enumerate(results):
             if is_exception(r):
-                log.error("error in gather_helper", exc_info=r)
+                _log_exc("error in gather_helper", caller_stack, r, index=i)
 
     return results
 
@@ -101,8 +127,8 @@ async def safe_await(
 ) -> _T: ...
 @overload
 async def safe_await(
-    awaitable: NestedContainer[Awaitable[_T]],
-    *,
+    awaitable: NestedContainer[Awaitable[_T]], 
+    *, 
     log_exc: bool = True,
 ) -> List[Union[_T, Exception]]: ...
 @overload
@@ -130,15 +156,24 @@ async def safe_await(
     log_exc = True,
     ):
 
-    results = []
+    caller_stack = traceback.extract_stack()[:-1]
 
-    for awaitable in flat_cont(awaitables):
+    results = []
+    flat_awaitables = flat_cont(awaitables)
+    is_multi = len(flat_awaitables) > 1 
+
+    for i, awaitable in enumerate(flat_awaitables):
         try:
             result = await awaitable
         except Exception as e:
             if log_exc:
-                log.exception("Error in safe_await")
-                
+                _log_exc(
+                    "error in safe_await",
+                    caller_stack,
+                    e,
+                    index=i if is_multi else None,
+                )
+
             result = e
 
         if is_exception(result):
@@ -209,7 +244,6 @@ async def maybe_awaitable(
         )
 
 
-
 async def safe_wait_task(task: asyncio.Task[_T], canceled_ok = True, exc_ok = False) -> Optional[_T]:
     try:
         return await task
@@ -220,10 +254,68 @@ async def safe_wait_task(task: asyncio.Task[_T], canceled_ok = True, exc_ok = Fa
         if not exc_ok:
             raise
 
+async def run_awaitable_in_coro(awaitable: Awaitable[_T]) -> _T:
+    return await awaitable
+
+
+async def gather_strict(
+    *awaitables: NestedContainer[Awaitable[_T]], 
+    log_exc: bool = True, 
+    ) -> List[_T]:
+    
+    caller_stack = traceback.extract_stack()[:-1]
+
+    awaitables = flat_cont(awaitables)
+
+    awaitable_2_task = {}
+    task_2_result = {}
+
+    def _on_task_done(t):
+        if t.canceled():
+            r = asyncio.CancelledError
+        else:
+            r = t.exception()
+            if r is None:
+                r = t.result()
+        
+        task_2_result[t] = r
+
+    try:
+        async with asyncio.TaskGroup() as tg:
+            for awaitable in awaitables:
+                if not inspect.isawaitable(awaitable):
+                    raise ValueError(
+                        f"Expected awaitable values in gather_strict(), got {type(awaitable).__name__!r}"
+                    )
+
+                task = awaitable_2_task.get(awaitable)
+
+                if task is None:
+                    task = tg.create_task(
+                        awaitable 
+                        if asyncio.iscoroutine(awaitable) 
+                        else run_awaitable_in_coro(awaitable)
+                    )
+                    
+                    task.add_done_callback(_on_task_done)
+                    awaitable_2_task[awaitable] = task
+
+    except *Exception as eg:
+        if log_exc:
+            pass
+
+        raise
+
+    return [
+        task_2_result[awaitable_2_task[a]] for a in awaitables
+        ]
+
+
 __all__ = [
     "to_thread", 
     "gather_helper", 
     "safe_await", 
     "safe_wait_task", 
-    "maybe_awaitable"
+    "maybe_awaitable", 
+    "run_awaitable_in_coro", 
 ]
