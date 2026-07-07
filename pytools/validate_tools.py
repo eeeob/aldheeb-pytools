@@ -10,7 +10,7 @@ import sys
 if sys.version_info >= (3, 13):
     from typing import TypeIs
 else:
-    from typing_extensions import TypeIs
+    from typing import TypeGuard as TypeIs
 
 from typeguard import (
     check_type, check_type_internal, 
