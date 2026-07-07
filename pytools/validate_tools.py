@@ -133,28 +133,40 @@ def is_tg_otp_code(code, with_str = True, remove_spaces = False):
 
 @_optional_import(("phonenumbers", "phone"))
 def is_phone_number(
-    phone_number: Union[str, int], 
+    phone_number: Union[str, int, "phonenumbers.PhoneNumber"], 
     remove_spaces: bool = True, 
     resolve: bool = True
     ) -> TypeIs[Union[int, str]]:
-    
-    if not isinstance(phone_number, (int, str)):
+
+    if isinstance(phone_number, phonenumbers.PhoneNumber):
+        parsed_number = phone_number
+
+    elif isinstance(phone_number, (int, str)):
+        phone_number = str(phone_number)
+        
+        if remove_spaces:
+            from .text_tools import clean_spaces
+            phone_number = clean_spaces(phone_number)
+        
+        if resolve:
+            if phone_number.startswith("00"):
+                phone_number = phone_number[2:]
+
+            if not phone_number.startswith("+"):
+                phone_number = "+" + phone_number
+        
+        try:
+            parsed_number = phonenumbers.parse(phone_number)
+        except Exception:
+            return False
+    else:
         return False
     
-    if remove_spaces:
-        from .text_tools import clean_spaces
-        phone_number = clean_spaces(phone_number)
-    
-    if resolve:
-        if phone_number.startswith("00"):
-            phone_number = phone_number[2:]
-
-        if not phone_number.startswith("+"):
-            phone_number = "+" + phone_number
-    
     try:
-        parsed_number = phonenumbers.parse(phone_number)
-        return phonenumbers.is_possible_number(parsed_number) and phonenumbers.is_valid_number(parsed_number)
+        return (
+            phonenumbers.is_possible_number(parsed_number) 
+            and phonenumbers.is_valid_number(parsed_number)
+        )
     except Exception:
         return False
 

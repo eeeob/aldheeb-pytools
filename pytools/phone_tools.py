@@ -15,7 +15,7 @@ except ImportError:
 
 from .typings import PhoneNumber, RegionCode, _True
 from .text_tools import clean_spaces, to_str
-from .validate_tools import is_rc, validation
+from .validate_tools import is_rc, validation, is_phone_number
 from .callable_tools import safe_call
 
 from ._optional import _optional_import
@@ -41,8 +41,8 @@ def parse_phone(
     ):
 
     if not isinstance(phone_number, PhoneNumberObj):
-
         phone_number = to_str(phone_number)
+        validation(isinstance(phone_number, str), f"Invalid PhoneNumber - {phone_number}")
 
         if clean:
             phone_number = clean_spaces(phone_number).replace("-", "")
@@ -54,6 +54,8 @@ def parse_phone(
             phone_number = "+" + phone_number
     
         phone_number = parse(phone_number)
+    
+    validation(is_phone_number(phone_number, remove_spaces=False, resolve=False), f"Invalid PhoneNumber - {phone_number}")
     
     return phone_number if return_numobj else format_number(phone_number, PhoneNumberFormat.E164)
     
