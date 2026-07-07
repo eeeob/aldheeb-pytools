@@ -11,16 +11,18 @@ from concurrent.futures import Future, InvalidStateError
 
 try:
     from aiologic import Condition, CountdownEvent, SimpleQueue
-    HAS_AIOLOGIC = True
 except ImportError:
     HAS_AIOLOGIC = False
+else:
+    HAS_AIOLOGIC = True
 
 
 try:
     from pymongo import IndexModel
-    HAS_PYMONGO = True
 except ImportError:
     HAS_PYMONGO = False
+else:
+    HAS_PYMONGO = True
 
 from ._optional import _unavailable_class
 
@@ -37,6 +39,7 @@ import asyncio
 
 
 _C = TypeVar("_C")
+
 class classproperty(Generic[_C, _T]):
     @overload
     def __new__(
