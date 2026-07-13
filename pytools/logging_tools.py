@@ -1,6 +1,8 @@
-from typing import Union, Optional, Tuple, List, overload
+from typing import Union, Optional, Tuple, List, Iterator, overload
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
 
-from .typings import _False, _True, Container
+from .typings import _False, _True, Container, NestedContainer
 from .models import LoggerOptions, LogHandlerOptions
 from .iter_tools import flat_cont
 
@@ -27,25 +29,25 @@ def flush_logger_handler(handler: Optional[logging.Handler] = None) -> None:
 def attach_logger_handlers(
     hdlrs_options: LogHandlerOptions, 
     return_loggers: _False = ...
-    ) -> Union[logging.StreamHandler, logging.FileHandler]: ...
+    ) -> logging.Handler: ...
 @overload
 def attach_logger_handlers(
     hdlrs_options: LogHandlerOptions, 
     return_loggers: _True
-    ) -> Tuple[logging.Logger, Union[logging.StreamHandler, logging.FileHandler]]: ...
+    ) -> Tuple[logging.Logger, logging.Handler]: ...
 @overload
 def attach_logger_handlers(
-    hdlrs_options: 'Container[LogHandlerOptions]', 
+    hdlrs_options: 'Container[NestedContainer[LogHandlerOptions]]', 
     return_loggers: _False = ...
-    ) -> List[Union[logging.StreamHandler, logging.FileHandler]]: ...
+    ) -> List[logging.Handler]: ...
 @overload
 def attach_logger_handlers(
-    hdlrs_options: 'Container[LogHandlerOptions]', 
+    hdlrs_options: 'Container[NestedContainer[LogHandlerOptions]]', 
     return_loggers: _True
-    ) -> List[Tuple[logging.Logger, Union[logging.StreamHandler, logging.FileHandler]]]: ...
+    ) -> List[Tuple[logging.Logger, logging.Handler]]: ...
 
 def attach_logger_handlers(
-    hdlrs_options: Union[LogHandlerOptions, 'Container[LogHandlerOptions]'], 
+    hdlrs_options: NestedContainer[LogHandlerOptions], 
     return_loggers: bool = False
     ):
     
@@ -71,9 +73,7 @@ def attach_logger_handlers(
     return handlers[0] if len(handlers) == 1 else handlers
 
 
-def set_loggers(
-        loggers_options: Union[LoggerOptions, 'Container[LoggerOptions]']
-        ) -> Union[logging.Logger, List[logging.Logger]]:
+def set_loggers(loggers_options: NestedContainer[LoggerOptions]) -> Union[logging.Logger, List[logging.Logger]]:
     loggers = []
 
     for options in flat_cont(loggers_options):
@@ -97,11 +97,22 @@ def set_loggers(
     return loggers[0] if len(loggers) == 1 else loggers
 
 
+def get_rotating_log_files(handler: RotatingFileHandler, with_base: bool = True) -> Iterator[Path]:
+    base = Path(handler.baseFilename)
+    backup_count = handler.backupCount
+
+    for i in range(backup_count, 0, -1):
+        yield base.with_name(f"{base.name}.{i}")
+
+    if with_base:
+        yield base
+
 
 __all__ = (
     "flush_logger_handler", 
     "attach_logger_handlers", 
     "set_loggers", 
+    "get_rotating_log_files", 
 )
 
 
