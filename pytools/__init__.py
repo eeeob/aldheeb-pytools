@@ -1,3 +1,4 @@
+from .__meta__ import __version__
 
 from .validate_tools import *
 from .date_tools import *
