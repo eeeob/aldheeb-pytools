@@ -52,13 +52,13 @@ def load_json(
     finally:
         if lock is not None:
             lock.release()
-    
+
     return data
 
 def save_json(
-    path: Union[str, Path], 
-    data: JsonValue, 
-    lock: Optional[threading.RLock] = None, 
+    path: Union[str, Path],
+    data: JsonValue,
+    lock: Optional[threading.RLock] = None,
     ):
 
     if lock is not None:
@@ -66,11 +66,21 @@ def save_json(
 
     if isinstance(path, str):
         path = Path(path)
-    
+
     data = enum_to_value(data)
 
+    # Write to a sibling temp file and atomically replace the target so a
+    # crash/interruption mid-write can never leave a partially-written or
+    # empty file behind for load_json() to trip over.
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+
     try:
-        path.write_text(json.dumps(data), encoding="utf-8")
+        try:
+            tmp_path.write_text(json.dumps(data), encoding="utf-8")
+            os.replace(tmp_path, path)
+        except BaseException:
+            remove_file(tmp_path)
+            raise
     finally:
         if lock is not None:
             lock.release()

@@ -1,4 +1,10 @@
-from typing import Generic, Tuple, Mapping, Optional, Any, Union, Dict, Self
+from typing import Generic, Tuple, Mapping, Optional, Any, Union, Dict
+
+try:
+    from typing import Self
+except ImportError:  # Python < 3.11
+    from typing_extensions import Self
+
 from dataclasses import field, dataclass
 from pathlib import Path
 from threading import RLock

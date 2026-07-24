@@ -7,12 +7,14 @@ build-backend = "hatchling.build"
 name = "aldheeb-pytools"
 dynamic = ["version"]
 description = "Python Tools library for some services"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [{ name = "Abdullah", email = "aldheeb01@gmail.com" }]
 readme = "README.md"
 
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -24,7 +26,13 @@ classifiers = [
 ]
 
 dependencies = [
-    "typeguard", 
+    # validate_tools.py relies on the typeguard v4 rewrite's API
+    # (check_type_internal, checker_lookup_functions, TypeCheckMemo,
+    # CollectionCheckStrategy); typeguard 2.x/3.x don't have it.
+    "typeguard>=4.3",
+    # typing.Self was added in 3.11; models/base.py and models/misc_models.py
+    # fall back to typing_extensions on 3.10.
+    "typing_extensions>=4.0; python_version<'3.11'",
 ]
 
 
@@ -35,25 +43,32 @@ dependencies = [
 dev = [
     "hatch<=1.16.5",
     "twine<=6.2.0",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
 ]
 
 aiologic = ["aiologic>=0.16"]
-mongo = ["pymongo>=4"]
+# 4.6.3 fixes PYSEC-2026-1826; the previous ">=4" floor permitted the
+# vulnerable 4.0-4.6.2 range to be installed.
+mongo = ["pymongo>=4.6.3"]
 country = ["pycountry>=26.2.16", "phonenumbers>=9.0.21"]
-crypto = ["cryptography>=40.0.0"]
+# 48.0.1 is the newest fix version among several CVEs (PYSEC-2023-112/254,
+# PYSEC-2024-225, PYSEC-2026-35/1283/1285/2141, GHSA-5cpq/jm77/v8gr/h4gh/537c)
+# that affected every version from the previous ">=40.0.0" floor up to 48.0.0.
+crypto = ["cryptography>=48.0.1"]
 bs4 = ["beautifulsoup4>=4.14.3"]
 imap = ["aioimaplib>=2.0.1"]
 phone = ["phonenumbers>=9.0.21"]
-tg = ["kurigram>=2.0.0"]
+# 2.0.0 was never published to PyPI; 2.1.35 is the oldest version that
+# actually exists, so the previous floor was unenforceable/untested.
+tg = ["kurigram>=2.1.35"]
 
 full = [
     "aldheeb-pytools[imap,phone,country,bs4,aiologic,mongo,tg,crypto]"
 ]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    ".github/",
-]
+exclude = [".github/",]
 
 [tool.hatch.version]
 path = "pytools/__meta__.py"
@@ -65,3 +80,7 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 ignore-vcs = true
 packages = ["pytools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

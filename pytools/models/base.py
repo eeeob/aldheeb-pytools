@@ -1,9 +1,14 @@
 from typing import (
-    Dict, Self, Any, ClassVar, List, FrozenSet, 
+    Dict, Any, ClassVar, List, FrozenSet,
     get_args, get_type_hints, get_origin
 )
 
-from enum import EnumType
+try:
+    from typing import Self
+except ImportError:  # Python < 3.11
+    from typing_extensions import Self
+
+from enum import EnumMeta as EnumType  # EnumType is only an alias for EnumMeta added in 3.11
 from dataclasses import dataclass, fields, asdict, is_dataclass
 
 from ..data_tools import clean_none_values, enum_to_value, value_to_enum
@@ -17,27 +22,29 @@ import json
 @dataclass
 class BaseDataClass:
     __public_field_names__: ClassVar[List[str]]
-    __private_field_names__: ClassVar[List[str]] 
+    __private_field_names__: ClassVar[List[str]]
     __raw_private_fields__: ClassVar[FrozenSet[str]]
     __enums_types__: ClassVar[FrozenSet[EnumType]]
 
-    def __init_subclass__(cls, **_):
+    @classmethod
+    def _ensure_field_meta(cls) -> None:
+        if "__public_field_names__" in vars(cls):
+            return
+
         if not is_dataclass(cls):
             raise TypeError(
                 f"{cls.__name__} must be dataclass"
             )
-        
-        cls.__public_field_names__ = public = []
-        cls.__private_field_names__ = private = []
 
-        
+        public = []
+        private = []
+
         def _deep_extract(value):
             if isinstance(value, EnumType):
                 yield value
             elif (origin := get_origin(value)) is not None:
                 for a in (*(get_args(value) or ()), origin):
                     yield from _deep_extract(a)
-
 
         cls.__enums_types__ = to_frozenset(
             flat_cont(
@@ -61,12 +68,21 @@ class BaseDataClass:
                     )
 
                     setattr(cls, pname, prop)
-            
+
             else:
                 public.append(name)
-        
+
         cls.__raw_private_fields__ = frozenset(f"_{n}" for n in private)
-    
+        cls.__public_field_names__ = public
+        cls.__private_field_names__ = private
+
+    def __post_init__(self) -> None:
+        # Guarantees the private-field property proxies (e.g. `.b` for `_b`) exist
+        # as soon as an instance is created, without requiring to_dict/from_dict
+        # to be called first. Subclasses that define their own __post_init__ must
+        # call super().__post_init__() to keep this guarantee.
+        self.__class__._ensure_field_meta()
+
     def to_raw_dict(
         self, 
         without_none_values: bool = False, 
@@ -83,10 +99,12 @@ class BaseDataClass:
         return dct
 
     def to_dict(
-        self, 
-        without_none_values: bool = False, 
-        enums_to_values: bool = False, 
+        self,
+        without_none_values: bool = False,
+        enums_to_values: bool = False,
         ) -> Dict[str, Any]:
+
+        self.__class__._ensure_field_meta()
 
         dct = (
             {name: getattr(self, name) for name in self.__class__.__public_field_names__} | 
@@ -104,9 +122,11 @@ class BaseDataClass:
     def from_raw_dict(
         cls, 
         data: dict, 
-        without_none_values: bool = False, 
-        values_to_enums: bool = False, 
+        without_none_values: bool = False,
+        values_to_enums: bool = False,
         ) -> Self:
+
+        cls._ensure_field_meta()
 
         _private = cls.__raw_private_fields__
         _public = cls.__public_field_names__
@@ -127,9 +147,11 @@ class BaseDataClass:
     def from_dict(
         cls, 
         data: dict, 
-        without_none_values: bool = False, 
-        values_to_enums: bool = False, 
+        without_none_values: bool = False,
+        values_to_enums: bool = False,
         ) -> Self:
+
+        cls._ensure_field_meta()
 
         _private = cls.__private_field_names__
         _public = cls.__public_field_names__

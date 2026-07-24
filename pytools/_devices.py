@@ -31,7 +31,6 @@ class DeviceInfo:
 class SystemInfo:
 
     deviceList: List[DeviceInfo] = []
-    device_modesl: List[str] = []
     system_versions: List[str] = []
 
     def __init__(self) -> None:

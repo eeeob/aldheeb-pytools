@@ -112,8 +112,16 @@ mention = mention_tg_user(123456789, "John")
 ```bash
 git clone https://github.com/eeeob/aldheeb-pytools.git
 cd aldheeb-pytools
-pip install -e ".[dev]"
+pip install -e ".[full,dev]"
 ```
+
+### Running tests
+
+```bash
+pytest
+```
+
+Tests run in CI across every Python version listed in the classifiers above (3.10 through 3.14), both with the minimal (no-extras) install and with `[full,dev]`.
 
 ---
 

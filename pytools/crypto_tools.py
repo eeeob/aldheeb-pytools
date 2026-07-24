@@ -66,7 +66,9 @@ def decrypt(encrypted_data: bytes, password: str, data_resolver: None = None) ->
 def decrypt(encrypted_data: bytes, password: str, data_resolver: Callable[[bytes], _T]) -> _T: ...
 @_optional_import(("cryptography", "crypto"))
 def decrypt(encrypted_data: bytes, password: str, data_resolver=None):
-    if len(encrypted_data) < 29: 
+    # 16-byte salt + 12-byte nonce + 16-byte GCM tag is the minimum possible
+    # length (for empty plaintext); anything shorter can never be valid.
+    if len(encrypted_data) < 44:
         raise ValidationError("Data length is too short")
 
     salt = encrypted_data[:16]

@@ -1,11 +1,16 @@
 from typing import Optional
-from enum import Enum, StrEnum, auto, IntEnum
+from enum import Enum, IntEnum
 
 
-class TriggerOn(StrEnum):
-    SUCCESS = auto()
-    ERROR = auto()
-    ALWAYS = auto()
+class TriggerOn(str, Enum):
+    # enum.StrEnum is 3.11+; (str, Enum) + explicit values + a __str__
+    # override reproduces the exact same values and str() behavior on 3.10.
+    SUCCESS = "success"
+    ERROR = "error"
+    ALWAYS = "always"
+
+    def __str__(self) -> str:
+        return self.value
 
 class TgMessageLength(IntEnum):
     TEXT = 4096
@@ -29,10 +34,13 @@ class ImapEmailProvider(Enum):
     def from_domain(cls, domain: str) -> Optional["ImapEmailProvider"]:
         return IMAP_DOMAIN_TO_PROVIDER.get(domain.lower())
     
-class PlatformDevice(StrEnum):
-    ANDROID = auto()
-    IOS = auto()
-    DESKTOP = auto()
+class PlatformDevice(str, Enum):
+    ANDROID = "android"
+    IOS = "ios"
+    DESKTOP = "desktop"
+
+    def __str__(self) -> str:
+        return self.value
 
 class TimeUnit(IntEnum):
     MINUTE = 60

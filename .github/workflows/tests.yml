@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  # Guards the README's "minimal install" promise: `pip install aldheeb-pytools`
+  # (no extras) must be importable stand-alone on every Python version the
+  # classifiers/Requires-Python claim to support. This is the exact scenario
+  # that used to break at import time (typing.Union isinstance() incompatibility
+  # pre-3.14) without ever being caught, because no CI ran on non-tag pushes.
+  minimal-install-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install core package only (no extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Import smoke test
+        run: python -c "import pytools; print(len(pytools.__all__), 'symbols exported OK')"
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package with all extras + dev tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[full,dev]"
+
+      - name: Run tests
+        run: pytest

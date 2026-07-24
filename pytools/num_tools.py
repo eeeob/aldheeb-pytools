@@ -4,12 +4,45 @@ from typing import Union, overload, Optional
 from .typings import _True, _False, _T, Number
 from .validate_tools import validation
 
+import ast
+import operator
 import logging
 import random
 
 
 log = logging.getLogger(__name__)
 CALC_ALLOWED_CHARS = frozenset("0123456789*/-+.")
+
+# Explicit allow-list of AST node/operator types for calc()'s expression
+# evaluator. Anything else (function calls, attribute access, subscripts,
+# names, Pow/**, etc.) raises instead of evaluating -- there is no eval()/
+# exec() involved, so no code path can escape basic arithmetic on numbers.
+_CALC_BINOPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+_CALC_UNARYOPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _eval_calc_ast(node):
+    if isinstance(node, ast.Expression):
+        return _eval_calc_ast(node.body)
+
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return node.value
+
+    if isinstance(node, ast.BinOp) and type(node.op) in _CALC_BINOPS:
+        return _CALC_BINOPS[type(node.op)](_eval_calc_ast(node.left), _eval_calc_ast(node.right))
+
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _CALC_UNARYOPS:
+        return _CALC_UNARYOPS[type(node.op)](_eval_calc_ast(node.operand))
+
+    raise ValueError(f"Disallowed expression node: {type(node).__name__}")
 
 
 
@@ -47,7 +80,7 @@ def calc(value: Union[str, _T], as_int: bool = False):
 
         if all(i in CALC_ALLOWED_CHARS for i in c_value):
             try:
-                c_value = eval(c_value, {"__builtins__": None}, {})
+                c_value = _eval_calc_ast(ast.parse(c_value, mode="eval"))
             except Exception as e:
                 log.exception(e)
 

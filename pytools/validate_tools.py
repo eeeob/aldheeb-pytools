@@ -1,8 +1,8 @@
 
 from typing import (
-    Any, Union, Optional, 
-    Mapping, Type, Never, 
-    overload, Tuple, 
+    Any, Union, Optional,
+    Mapping, Type,
+    overload, Tuple, get_args,
 )
 
 import sys
@@ -12,13 +12,18 @@ if sys.version_info >= (3, 13):
 else:
     from typing import TypeGuard as TypeIs
 
+try:
+    from typing import Never
+except ImportError:  # Python < 3.11
+    from typing_extensions import Never
+
 from typeguard import (
     check_type, check_type_internal, 
     checker_lookup_functions, 
     TypeCheckMemo, TypeCheckError, 
     CollectionCheckStrategy, 
 )
-from enum import EnumType, Enum
+from enum import EnumMeta as EnumType, Enum  # EnumType is only an alias for EnumMeta added in 3.11
 
 try:
     from aioimaplib import aioimaplib
@@ -55,13 +60,18 @@ TG_BOT_COMMAND_PATTERN = re.compile(r"^/[A-Za-z][\w\d]*$")
 TG_CHANNEL_MSG_LINK_PATTERN = re.compile(r"^(?:https?://)?(?:www\.)?(?:t(?:elegram)?\.(?:org|me|dog)/(?:c/)?)([\w]+)(?:/\d+)*/(\d+)/?$")
 EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
+# isinstance()/issubclass() only accept a typing.Union directly on Python >= 3.14;
+# on 3.12/3.13 that raises TypeError. get_args() unwraps it into a plain tuple of
+# classes, which isinstance()/issubclass() have always accepted on every version.
+_CONTAINER_TYPES = get_args(Container)
+_NOT_CONTAINER_TYPES = get_args(NotContainer)
 
 
 def is_exception(obj: Any) -> TypeIs[BaseException]:
     return isinstance(obj, BaseException)
 
 def is_container(obj: Union['Container[_T]', Any]) -> TypeIs['Container[_T]']:
-    return isinstance(obj, Container) and not isinstance(obj, NotContainer)
+    return isinstance(obj, _CONTAINER_TYPES) and not isinstance(obj, _NOT_CONTAINER_TYPES)
 
 def is_mapping(obj: Union[Mapping[_KT, _VT], Any]) -> TypeIs[Mapping[_KT, _VT]]:
     return isinstance(obj, Mapping)
@@ -70,7 +80,7 @@ def is_sub_mapping(obj: Any) -> TypeIs[Type[Mapping]]:
     return isinstance(obj, type) and issubclass(obj, Mapping)
 
 def is_sub_container(obj: Any) -> TypeIs[Type[Container]]:
-    return isinstance(obj, type) and issubclass(obj, Container) and not issubclass(obj, NotContainer)
+    return isinstance(obj, type) and issubclass(obj, _CONTAINER_TYPES) and not issubclass(obj, _NOT_CONTAINER_TYPES)
 
 @_optional_import(("kurigram", "tg"))
 def is_tg_channel_id(value: Any) -> TypeIs[int]:
