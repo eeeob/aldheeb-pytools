@@ -1,16 +1,25 @@
 from typing import Optional
-from enum import Enum, IntEnum
+
+import sys
+
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+    from enum import Enum
+    
+    class StrEnum(str, Enum):
+        def _generate_next_value_(name, *args):
+            return name.lower()
+        def __str__(self):
+            return str(self.value)
+        
+from enum import Enum, IntEnum, auto
 
 
-class TriggerOn(str, Enum):
-    # enum.StrEnum is 3.11+; (str, Enum) + explicit values + a __str__
-    # override reproduces the exact same values and str() behavior on 3.10.
-    SUCCESS = "success"
-    ERROR = "error"
-    ALWAYS = "always"
-
-    def __str__(self) -> str:
-        return self.value
+class TriggerOn(StrEnum):
+    SUCCESS = auto()
+    ERROR = auto()
+    ALWAYS = auto()
 
 class TgMessageLength(IntEnum):
     TEXT = 4096
@@ -34,13 +43,10 @@ class ImapEmailProvider(Enum):
     def from_domain(cls, domain: str) -> Optional["ImapEmailProvider"]:
         return IMAP_DOMAIN_TO_PROVIDER.get(domain.lower())
     
-class PlatformDevice(str, Enum):
-    ANDROID = "android"
-    IOS = "ios"
-    DESKTOP = "desktop"
-
-    def __str__(self) -> str:
-        return self.value
+class PlatformDevice(StrEnum):
+    ANDROID = auto()
+    IOS = auto()
+    DESKTOP = auto()
 
 class TimeUnit(IntEnum):
     MINUTE = 60
