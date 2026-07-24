@@ -66,10 +66,12 @@ async def await_sync(
     return func(*args, **kwargs)
 
 
-def to_coroutine(func: Callable[_P, _T], is_method: bool = False) -> Callable[_P, Coroutine[Any, Any, _T]]:
-    return (functools.partialmethod if is_method else functools.partial)(
-        await_sync, func
-    )
+def to_coroutine(func: Callable[_P, _T]) -> Callable[_P, Coroutine[Any, Any, _T]]:
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        return await await_sync(func, *args, **kwargs)
+
+    return wrapper
 
 
 @overload
