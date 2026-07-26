@@ -21,8 +21,12 @@ def safe_call(func, *args, return_exc = False, **kwargs):
 def raise_if(
     exc: Union[BaseException, Callable[[], BaseException]], 
     bool_value: Optional[bool] = None, 
-    values: Optional["NestedContainer[Hashable]"] = None 
+    values: Optional["NestedContainer[Hashable]"] = None,
+    always: bool = False,
     ):
+
+    if always and (bool_value is not None or values is not None):
+        raise ValueError("raise_if: can't pass bool_value or values when always=True")
 
     values = to_frozenset(flat_cont(values))
 
@@ -36,7 +40,7 @@ def raise_if(
             async def async_wrapper(*args: _P.args, **kwargs: _P.kwargs):
                 result = await func(*args, **kwargs)
                 
-                if result in values or (bool_value is not None and bool(result) == bool_value):
+                if always or result in values or (bool_value is not None and bool(result) == bool_value):
                     raise exc() if callable(exc) else exc
                 
                 return result
@@ -47,7 +51,7 @@ def raise_if(
         def sync_wrapper(*args: _P.args, **kwargs: _P.kwargs):
             result = func(*args, **kwargs)
 
-            if result in values or (bool_value is not None and bool(result) == bool_value):
+            if always or result in values or (bool_value is not None and bool(result) == bool_value):
                 raise exc() if callable(exc) else exc
             
             return result
