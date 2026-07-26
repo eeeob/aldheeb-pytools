@@ -77,6 +77,9 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
             self.data = load_json(self.path, lock=self.lock)
 
     def save(self) -> None:
+        if self.data is None:
+            raise RuntimeError("JsonContainer has no data loaded to save")
+
         save_json(
             self.path, 
             self.data, 
