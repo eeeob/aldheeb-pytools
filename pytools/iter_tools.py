@@ -47,26 +47,6 @@ def to_frozenset(value: Union[None, _T, 'Container[_T]']):
         return frozenset(value)
     return frozenset({value}) if value is not None else frozenset()
 
-@overload
-def flat_cont(*containers: None) -> List: ...
-@overload
-def flat_cont(*containers: NestedContainer[None]) -> List: ...
-@overload
-def flat_cont(*containers: NestedContainer[_T]) -> List[_T]: ...
-def flat_cont(*containers):
-    def _flat_generator(item):
-        if is_container(item):
-            for i in item:
-                yield from _flat_generator(i)
-        elif item is not None:
-            yield item
-
-    result = []
-    
-    for item in containers:
-        result.extend(_flat_generator(item))
-        
-    return result
 
 @overload
 def iter_flat_cont(*containers: None) -> Generator[Any, None, None]: ...
@@ -81,13 +61,22 @@ def iter_flat_cont(*containers):
         elif item is not None:
             yield item
 
+@overload
+def flat_cont(*containers: None) -> List: ...
+@overload
+def flat_cont(*containers: NestedContainer[None]) -> List: ...
+@overload
+def flat_cont(*containers: NestedContainer[_T]) -> List[_T]: ...
+def flat_cont(*containers):
+    return list(iter_flat_cont(*containers))
 
 
 __all__ = (
     "to_list", 
     "to_tuple", 
     "to_set", 
-    "flat_cont", 
     "to_frozenset", 
     "iter_flat_cont", 
+    "flat_cont", 
+    
 )
