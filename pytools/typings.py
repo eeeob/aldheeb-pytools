@@ -34,21 +34,21 @@ if TYPE_CHECKING:
         ]
 
 else:
-    Container = Union[
+    Container: TypeAlias = Union[
         Generator, TCollection, Reversible,
         Sequence, AbstractSet, Mapping,
         filter, enumerate, zip
         ]
-    ContainerWithoutMapping = Union[
+    ContainerWithoutMapping: TypeAlias = Union[
         Generator, TCollection, Reversible,
         Sequence, AbstractSet, filter, enumerate,
         ]
 
 
-NestedContainer = Union[_T, "Container[NestedContainer]"]
-NestedStrKeyDict = Dict[str, Union[_T, "NestedStrKeyDict"]]
+NestedContainer: TypeAlias = Union[_T, "Container[NestedContainer]"]
+NestedStrKeyDict: TypeAlias = Dict[str, Union[_T, "NestedStrKeyDict"]]
 
-MaybeCoroutineCallable = Callable[_P, Union[Coroutine[Any, Any, _T], _T]]
+MaybeCoroutineCallable: TypeAlias = Callable[_P, Union[Coroutine[Any, Any, _T], _T]]
 # Written out in full (not `MaybeCoroutineCallable[_P, _T]`) because
 # substituting into an *already-subscripted* ParamSpec generic nested inside
 # another Union is unreliable pre-3.14 -- it raises
@@ -60,9 +60,9 @@ MaybeCoroutineCallable = Callable[_P, Union[Coroutine[Any, Any, _T], _T]]
 # from the `MaybeAwaitable[_P, _T]` subscript order used at call sites, which
 # raises the same TypeError (confirmed on 3.12). Callable[_P, ...] first
 # discovers (_P, _T), matching the intended subscript order.
-MaybeAwaitable = Union[Callable[_P, Union[Coroutine[Any, Any, _T], _T]], Awaitable[_T]]
+MaybeAwaitable: TypeAlias = Union[Callable[_P, Union[Coroutine[Any, Any, _T], _T]], Awaitable[_T]]
 
-MaybeContainer = Union[_T, "Container[_T]"]
+MaybeContainer: TypeAlias = Union[_T, "Container[_T]"]
 
 
 NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType, Awaitable]
