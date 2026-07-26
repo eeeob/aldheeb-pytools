@@ -58,6 +58,14 @@ pip install "aldheeb-pytools[full]"
 
 > **Note:** If you try to use a feature without its required packages installed, you'll get a clear `ImportError` with the exact install command needed.
 
+### Install the latest version from GitHub
+
+To install directly from the `main` branch (ahead of the latest PyPI release):
+
+```bash
+pip install git+https://github.com/eeeob/aldheeb-pytools.git --force-reinstall
+```
+
 ---
 
 ## 🚀 Quick Start
