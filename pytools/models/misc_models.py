@@ -72,18 +72,19 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
     data: Dict[_KT, _VT] = field(default=None, init=False)
     
 
-    def load(self) -> None:
+    def load(self, **kw) -> None:
         if self.data is None:
-            self.data = load_json(self.path, lock=self.lock)
+            self.data = load_json(self.path, lock=self.lock, **kw)
 
-    def save(self) -> None:
+    def save(self, **kw) -> None:
         if self.data is None:
             raise RuntimeError("JsonContainer has no data loaded to save")
 
         save_json(
             self.path, 
             self.data, 
-            self.lock
+            self.lock, 
+            **kw
         )
     
     def get(self, key: _KT, default: Optional[_T] = None) -> Optional[Union[_VT, _T]]:
@@ -117,11 +118,11 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
         if save_now:
             self.save()
 
-    async def async_load(self) -> None:
-        await to_thread(self.load)
+    async def async_load(self, **kw) -> None:
+        await to_thread(self.load, **kw)
     
-    async def async_save(self) -> None:
-        await to_thread(self.save)
+    async def async_save(self, **kw) -> None:
+        await to_thread(self.save, **kw)
     
     async def async_get(self, key: _KT, default: Optional[_T] = None) -> Optional[Union[_VT, _T]]:
         if self.data is None:

@@ -33,6 +33,7 @@ def load_json(
     path: Union[str, Path], 
     default: dict = _NOT_SET, 
     lock: Optional[threading.RLock] = None, 
+    **kw, 
     ):
 
     if lock is not None:
@@ -45,7 +46,7 @@ def load_json(
         default = {}
 
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"), **kw)
     except FileNotFoundError:
         data = default
 
@@ -56,9 +57,10 @@ def load_json(
     return data
 
 def save_json(
-    path: Union[str, Path],
-    data: JsonValue,
-    lock: Optional[threading.RLock] = None,
+    path: Union[str, Path], 
+    data: JsonValue, 
+    lock: Optional[threading.RLock] = None, 
+    **kw, 
     ):
 
     if lock is not None:
@@ -76,7 +78,7 @@ def save_json(
 
     try:
         try:
-            tmp_path.write_text(json.dumps(data), encoding="utf-8")
+            tmp_path.write_text(json.dumps(data, **kw), encoding="utf-8")
             os.replace(tmp_path, path)
         except BaseException:
             remove_file(tmp_path)
