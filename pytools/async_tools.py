@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .typings import NestedContainer, MaybeAwaitable, _True, _False, _P, _T
 from .validate_tools import is_exception, iscoroutinefunction_wrapped
-from .iter_tools import flat_cont
+from .iter_tools import iter_flat_cont
 
 from ._async_tools import _gather_cancel_on_error
 
@@ -104,7 +104,7 @@ async def gather_helper(
 
     caller_stack = traceback.extract_stack()[:-1]
 
-    results = await asyncio.gather(*flat_cont(awaitables), return_exceptions=return_exc)
+    results = await asyncio.gather(*iter_flat_cont(awaitables), return_exceptions=return_exc)
 
     if log_exc and return_exc:
         for i, r in enumerate(results):
@@ -133,7 +133,7 @@ async def gather_abort(
 
     caller_stack = traceback.extract_stack()[:-1]
 
-    results = await _gather_cancel_on_error(*flat_cont(awaitables), return_exceptions=return_exc)
+    results = await _gather_cancel_on_error(*iter_flat_cont(awaitables), return_exceptions=return_exc)
 
     if log_exc and return_exc:
         for i, r in enumerate(results):
@@ -189,10 +189,12 @@ async def safe_await(
     caller_stack = traceback.extract_stack()[:-1]
 
     results = []
-    flat_awaitables = flat_cont(awaitables)
-    is_multi = len(flat_awaitables) > 1 
+    is_multi = False
 
-    for i, awaitable in enumerate(flat_awaitables):
+    for i, awaitable in enumerate(iter_flat_cont(awaitables)):
+        if not is_multi and i > 0:
+            is_multi = True
+
         try:
             result = await awaitable
         except Exception as e:

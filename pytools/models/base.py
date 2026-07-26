@@ -12,7 +12,7 @@ from enum import EnumMeta as EnumType  # EnumType is only an alias for EnumMeta 
 from dataclasses import dataclass, fields, asdict, is_dataclass
 
 from ..data_tools import clean_none_values, enum_to_value, value_to_enum
-from ..iter_tools import to_frozenset, flat_cont
+from ..iter_tools import to_frozenset, iter_flat_cont
     
 
 import json
@@ -47,7 +47,7 @@ class BaseDataClass:
                     yield from _deep_extract(a)
 
         cls.__enums_types__ = to_frozenset(
-            flat_cont(
+            iter_flat_cont(
                 _deep_extract(t)
                 for t in get_type_hints(cls).values()
                 )

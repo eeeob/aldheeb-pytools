@@ -259,11 +259,11 @@ def any_of(*values: Any) -> bool:
     return any(values)
 
 def all_deep(*values: NestedContainer[Any]) -> bool:
-    from .iter_tools import flat_cont
-    return all(flat_cont(values))
+    from .iter_tools import iter_flat_cont
+    return all(iter_flat_cont(values))
 def any_deep(*values: NestedContainer[Any]) -> bool:
-    from .iter_tools import flat_cont
-    return any(flat_cont(values))
+    from .iter_tools import iter_flat_cont
+    return any(iter_flat_cont(values))
 
 
 def checker_lookup(origin_type: Any, *_):

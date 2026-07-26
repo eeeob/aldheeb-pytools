@@ -1,6 +1,7 @@
 from typing import (
     List, Set, Union, 
-    FrozenSet, Tuple, overload
+    FrozenSet, Tuple, 
+    Generator, Any, overload
 )
 
 
@@ -67,7 +68,18 @@ def flat_cont(*containers):
         
     return result
 
-
+@overload
+def iter_flat_cont(*containers: None) -> Generator[Any, None, None]: ...
+@overload
+def iter_flat_cont(*containers: NestedContainer[None]) -> Generator[Any, None, None]: ...
+@overload
+def iter_flat_cont(*containers: NestedContainer[_T]) -> Generator[_T, None, None]: ...
+def iter_flat_cont(*containers):
+    for item in containers:
+        if is_container(item):
+            yield from iter_flat_cont(*item)
+        elif item is not None:
+            yield item
 
 
 
@@ -77,4 +89,5 @@ __all__ = (
     "to_set", 
     "flat_cont", 
     "to_frozenset", 
+    "iter_flat_cont", 
 )

@@ -4,7 +4,7 @@ from enum import Enum
 from .typings import _T, _KT, _VT, _EnumT, Container, NestedContainer, NestedStrKeyDict
 from .errors import ValidationError
 from .validate_tools import is_container, is_mapping
-from .iter_tools import flat_cont, to_frozenset
+from .iter_tools import iter_flat_cont, to_frozenset
 
 
 
@@ -58,7 +58,7 @@ def value_to_enum(
 
     enum_map = {}
 
-    for enum_cls in to_frozenset(flat_cont(enum_classes)):
+    for enum_cls in to_frozenset(iter_flat_cont(enum_classes)):
         enum_map.update(enum_cls._value2member_map_)
 
     def convert(v):

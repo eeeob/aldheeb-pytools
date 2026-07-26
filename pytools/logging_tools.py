@@ -4,7 +4,7 @@ from logging.handlers import RotatingFileHandler
 
 from .typings import _False, _True, Container, NestedContainer
 from .models import LoggerOptions, LogHandlerOptions
-from .iter_tools import flat_cont
+from .iter_tools import iter_flat_cont
 
 import logging
 
@@ -53,7 +53,7 @@ def attach_logger_handlers(
     
     handlers = []
 
-    for options in flat_cont(hdlrs_options):
+    for options in iter_flat_cont(hdlrs_options):
         logger = options.resolve_logger()
         handler = options.resolve_handler()
 
@@ -76,7 +76,7 @@ def attach_logger_handlers(
 def set_loggers(loggers_options: NestedContainer[LoggerOptions]) -> Union[logging.Logger, List[logging.Logger]]:
     loggers = []
 
-    for options in flat_cont(loggers_options):
+    for options in iter_flat_cont(loggers_options):
         logger = options.resolve_logger()
 
         if options.reset_level:
