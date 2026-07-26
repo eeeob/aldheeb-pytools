@@ -24,8 +24,9 @@ from ..files_tools import load_json, save_json
 
 from .base import BaseDataClass
 
-
 import asyncio
+
+_NOT_SET = object()
 
 
 @dataclass(slots=True)
@@ -69,15 +70,20 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
     path: Union[str, Path]
     lock: Optional[RLock] = None
 
-    data: Dict[_KT, _VT] = field(default=None, init=False)
-    
+    data: Dict[_KT, _VT] = field(default=_NOT_SET, init=False)
+
+    def is_loaded(self) -> bool:
+        return self.data is not _NOT_SET
+
+    def unload(self) -> None:
+        self.data = _NOT_SET
 
     def load(self, **kw) -> None:
-        if self.data is None:
+        if not self.is_loaded():
             self.data = load_json(self.path, lock=self.lock, **kw)
 
     def save(self, **kw) -> None:
-        if self.data is None:
+        if not self.is_loaded():
             raise RuntimeError("JsonContainer has no data loaded to save")
 
         save_json(
@@ -88,13 +94,11 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
         )
     
     def get(self, key: _KT, default: Optional[_T] = None) -> Optional[Union[_VT, _T]]:
-        if self.data is None:
-            self.load()
+        self.load()
         return self.data.get(key, default)
     
     def set(self, key: _KT, value: _VT, save_now: bool = False) -> None:
-        if self.data is None:
-            self.load()
+        self.load()
 
         self.data[key] = value
 
@@ -102,16 +106,14 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
             self.save()
 
     def delete(self, key: _KT, save_now: bool = False) -> None:
-        if self.data is None:
-            self.load()
+        self.load()
 
         if self.data.pop(key, None) is not None:
             if save_now:
                 self.save()
     
     def update(self, update: Dict[_KT, _VT], save_now: bool = False) -> None:
-        if self.data is None:
-            self.load()
+        self.load()
 
         self.data.update(update)
 
@@ -125,12 +127,12 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
         await to_thread(self.save, **kw)
     
     async def async_get(self, key: _KT, default: Optional[_T] = None) -> Optional[Union[_VT, _T]]:
-        if self.data is None:
+        if not self.is_loaded():
             await self.async_load()
         return self.data.get(key, default)
 
     async def async_set(self, key: _KT, value: _VT, save_now: bool = False) -> None:
-        if self.data is None:
+        if not self.is_loaded():
             await self.async_load()
 
         self.data[key] = value
@@ -139,7 +141,7 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
             await self.async_save()
 
     async def async_delete(self, key: _KT, save_now: bool = False) -> None:
-        if self.data is None:
+        if not self.is_loaded():
             await self.async_load()
 
         if self.data.pop(key, None) is not None:
@@ -148,7 +150,7 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
                 await self.async_save()
 
     async def async_update(self, update: Dict[_KT, _VT], save_now: bool = False) -> None:
-        if self.data is None:
+        if not self.is_loaded():
             await self.async_load()
 
         self.data.update(update)
