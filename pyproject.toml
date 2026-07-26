@@ -26,12 +26,7 @@ classifiers = [
 ]
 
 dependencies = [
-    # validate_tools.py relies on the typeguard v4 rewrite's API
-    # (check_type_internal, checker_lookup_functions, TypeCheckMemo,
-    # CollectionCheckStrategy); typeguard 2.x/3.x don't have it.
     "typeguard>=4.3",
-    # typing.Self was added in 3.11; models/base.py and models/misc_models.py
-    # fall back to typing_extensions on 3.10.
     "typing_extensions>=4.0; python_version<'3.11'",
 ]
 
