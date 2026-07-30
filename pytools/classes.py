@@ -36,7 +36,8 @@ import weakref
 import logging
 import threading
 import asyncio
-
+import sys
+import warnings
 
 _C = TypeVar("_C")
 
@@ -152,6 +153,14 @@ if HAS_AIOLOGIC:
 
             self.queue: SimpleQueue[Optional[WorkTaskInfoT]] = SimpleQueue()
 
+            if sys.version_info < (3, 11) and loop_factory is not None:
+                warnings.warn(
+                    "loop_factory is ignored on Python < 3.11 "
+                    "(asyncio.Runner is unavailable); falling back to asyncio.run()",
+                    stacklevel=2,
+                )
+
+
             self.__thread = threading.Thread(
                 target=self.__bootstrap, 
                 args=(loop_factory, exception_handler), 
@@ -171,9 +180,14 @@ if HAS_AIOLOGIC:
             if threading.current_thread() is not self.__thread:
                 raise RuntimeError("Bootstrap must be called from the worker thread")
 
+            
+
             try:
-                with asyncio.Runner(loop_factory=loop_factory) as runner:
-                    runner.run(self.__worker(exception_handler))
+                if sys.version_info < (3, 11):
+                    asyncio.run(self.__worker(exception_handler))
+                else:
+                    with asyncio.Runner(loop_factory=loop_factory) as runner:
+                        runner.run(self.__worker(exception_handler))
             finally:
                 self.__running.clear()
                 self.__stopping.clear()
