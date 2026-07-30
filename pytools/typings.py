@@ -2,11 +2,10 @@ from typing import (
     Collection, Generator, Union, Reversible,
     Sequence, AbstractSet, Mapping, TypeAlias, List,
     Any, Dict, Annotated, TYPE_CHECKING, Callable, Coroutine,
-    Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Tuple
+    Awaitable, ParamSpec, TypeVar, Literal, TypedDict
 )
 
 from enum import EnumMeta as EnumType, Enum  # EnumType is only an alias for EnumMeta added in 3.11
-from concurrent.futures import Future
 
 import sys
 
@@ -100,13 +99,6 @@ class CountryInfo(TypedDict):
     name: str
 
 
-WorkTaskInfo: TypeAlias = Tuple[
-    Callable[..., Awaitable[Any]],
-    Sequence[Any],
-    Dict[str, Any],
-    Future
-]
-
 __all__ = (
     "Container",
     "NestedContainer",
@@ -117,7 +109,7 @@ __all__ = (
     "RegionCode",
     "MaybeAwaitable",
     "CountryInfo",
-    "WorkTaskInfo", "Number",
+    "Number",
     "MaybeCoroutineCallable",
     "MaybeContainer", "JsonValue",
     "_P", "_T", "_CT", "_FT",
