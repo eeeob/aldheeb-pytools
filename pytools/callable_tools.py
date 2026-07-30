@@ -3,7 +3,10 @@ from typing import Callable, Any, Coroutine, Awaitable, Hashable, Optional, Unio
 from .typings import NestedContainer, _T, _P, _FT, _True
 from .validate_tools import iscoroutinefunction_wrapped
 from .iter_tools import flat_cont, to_frozenset
+from .async_tools import run_awaitable_in_coro
+from ._async_tools import _get_running_loop
 
+import asyncio
 import functools
 
 
@@ -78,6 +81,62 @@ def to_coroutine(func: Callable[_P, _T]) -> Callable[_P, Coroutine[Any, Any, _T]
     return wrapper
 
 
+def run_awaitable_sync(
+    awaitable: Awaitable[_T],
+    loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> _T:
+    """Run an awaitable to completion from synchronous code and return its result.
+
+    If `loop` is omitted, a fresh event loop is created, driven, and torn down
+    for this call only (via asyncio.run()) -- each call gets its own loop. To
+    run multiple awaitables against one persistent, reusable loop instead, use
+    classes.LoopRunner.
+
+    If `loop` is given, it must already be running in another thread (e.g. one
+    started with `threading.Thread(target=loop.run_forever)`); the awaitable
+    is submitted to it and this call blocks until it completes. An idle loop
+    is rejected rather than driven directly, since doing so here could race
+    with another thread starting that same loop concurrently. Calling this
+    with `loop` set to the loop already running in the calling thread raises
+    instead of deadlocking that loop.
+    """
+
+    if loop is not None:
+        if loop.is_closed():
+            raise RuntimeError("cannot use a closed event loop")
+
+        if not loop.is_running():
+            raise RuntimeError(
+                "the given event loop is not running -- driving an idle loop "
+                "directly here risks a conflict with another thread starting it "
+                "at the same time; start the loop in its own thread first, or "
+                "pass loop=None to let this call create and own a fresh loop"
+            )
+
+    if (running_loop := _get_running_loop()) is not None:
+        if loop is None:
+            raise RuntimeError(
+                "an event loop is already running in the calling thread, so a "
+                "new loop cannot be created and driven here -- pass an explicit "
+                "`loop` that is running in another thread"
+            )
+
+        if loop is running_loop:
+            raise RuntimeError(
+                "cannot target the event loop already running in the calling "
+                "thread -- blocking here to wait for it would deadlock that "
+                "same loop"
+            )
+
+    
+    coro = awaitable if asyncio.iscoroutine(awaitable) else run_awaitable_in_coro(awaitable)
+
+    if loop is None:
+        return asyncio.run(coro)
+
+    return asyncio.run_coroutine_threadsafe(coro, loop).result()
+
+
 @overload
 def set_func_attrs(func: _FT, **kw: Any) -> _FT: ...
 @overload
@@ -98,10 +157,11 @@ def set_func_attrs(func = None, **kw):
 
 
 __all__ = (
-    "safe_call", 
-    "raise_if", 
-    "await_sync", 
-    "set_func_attrs", 
-    "to_coroutine", 
+    "safe_call",
+    "raise_if",
+    "await_sync",
+    "set_func_attrs",
+    "to_coroutine",
+    "run_awaitable_sync",
 
 )
