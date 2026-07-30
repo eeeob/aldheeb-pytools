@@ -1,4 +1,7 @@
-from typing import Callable, Any, Coroutine, Awaitable, Hashable, Optional, Union, overload
+from typing import (
+    Callable, Any, Coroutine, Awaitable, Hashable,
+    Optional, Tuple, Type, TypeAlias, Union, overload,
+)
 
 from .typings import NestedContainer, _T, _P, _FT, _True
 from .validate_tools import iscoroutinefunction_wrapped
@@ -10,14 +13,51 @@ import asyncio
 import functools
 
 
+_ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
+
+
 @overload
-def safe_call(func: Callable[_P, _T], *args: _P.args, **kwargs: _P.kwargs) -> Optional[_T]: ...
+def safe_call(
+    func: Callable[_P, _T],
+    *args: _P.args,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    **kwargs: _P.kwargs,
+) -> Optional[_T]: ...
 @overload
-def safe_call(func: Callable[_P, _T], *args: _P.args, return_exc: _True, **kwargs: _P.kwargs) -> Union[_T, BaseException]: ...
-def safe_call(func, *args, return_exc = False, **kwargs):
+def safe_call(
+    func: Callable[_P, _T],
+    *args: _P.args,
+    return_exc: _True,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    **kwargs: _P.kwargs,
+) -> Union[_T, BaseException]: ...
+def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc = None, **kwargs):
+    """Call `func(*args, **kwargs)`, swallowing whatever it raises.
+
+    Returns None on failure, or the exception itself when `return_exc=True`.
+
+    `include_exc` narrows what is swallowed to those classes; anything else
+    propagates. `exclude_exc` names what must always propagate, and wins over
+    `include_exc` when both match -- so `include_exc=OSError,
+    exclude_exc=FileNotFoundError` swallows every OSError but that one. Each
+    takes a single class or a tuple of them, exactly like `except`.
+
+    With neither, every BaseException is swallowed, KeyboardInterrupt and
+    SystemExit included; pass `exclude_exc=(KeyboardInterrupt, SystemExit)` to
+    keep those escaping.
+    """
+
     try:
         return func(*args, **kwargs)
     except BaseException as e:
+        if exclude_exc is not None and isinstance(e, exclude_exc):
+            raise
+
+        if include_exc is not None and not isinstance(e, include_exc):
+            raise
+
         if return_exc:
             return e
 
