@@ -130,10 +130,11 @@ class AioThreadWorker:
     """Runs coroutine functions on a private event loop in its own thread.
 
     Every submission goes straight onto that loop via
-    asyncio.run_coroutine_threadsafe(), so submit() is safe to call from any
-    thread -- including threads with no event loop of their own -- and returns
-    an awaitable handle (see _WorkFuture) that can be awaited from whichever
-    loop is running when it is awaited, or read synchronously via .result().
+    asyncio.run_coroutine_threadsafe(), so submit() is safe to await from any
+    thread -- including threads with no event loop of their own. It is itself a
+    coroutine function: awaiting it resumes on the caller's own loop with the
+    work's result, and cancelling that await cancels the work on the worker's
+    loop too.
 
     A worker owns exactly one thread for its whole lifetime: once that thread
     ends the worker is finished for good and a new instance is needed.
@@ -141,6 +142,9 @@ class AioThreadWorker:
     `concurrency` caps how many submissions execute at once (0 or less means
     unlimited). Note that submissions above the cap are already live tasks
     parked on a semaphore inside the loop, not entries in an external queue.
+    Under a cap, submitted work must not await submit() on the same worker: the
+    outer task holds a slot the inner one waits for, so both hang and join()
+    never drains.
     """
 
     def __init__(
@@ -152,6 +156,8 @@ class AioThreadWorker:
         run_now: bool = True,
         ):
 
+        # bool passes this check and is accepted on purpose: True then reads as
+        # a cap of 1 and False as unlimited.
         if not isinstance(concurrency, int):
             raise TypeError(
                 f"concurrency must be an int, got {type(concurrency).__name__!r}"
@@ -187,8 +193,7 @@ class AioThreadWorker:
         self.__thread: Optional[threading.Thread] = None
 
         self.__loop: Optional[asyncio.AbstractEventLoop] = None
-        # Reentrant: __forget_pending() takes this lock from a future callback
-        # that may fire on whichever thread completes the future.
+        # Guards __thread, __pending and the start/stop transitions.
         self.__lock = threading.RLock()
 
         self.__running = threading.Event()
@@ -211,13 +216,19 @@ class AioThreadWorker:
         if threading.current_thread() is not self.__thread:
             raise RuntimeError("Bootstrap must be called from the worker thread")
 
+        loop_factory = self.__loop_factory
+        del self.__loop_factory
+        coro = self.__worker()
+
         try:
             if sys.version_info < (3, 12):
-                asyncio.run(self.__worker())
+                asyncio.run(coro)
             else:
-                loop_factory = self.__loop_factory
-                del self.__loop_factory
-                asyncio.run(self.__worker(), loop_factory=loop_factory)
+                asyncio.run(coro, loop_factory=loop_factory)
+        except :
+            coro.close()
+            raise
+
         finally:
             self.__running.clear()
 
@@ -226,6 +237,12 @@ class AioThreadWorker:
             self.__drain = None
 
             with self.__lock:
+                # Cleared because the loop is closed by now, and holding it
+                # would keep it and everything it references alive for as long
+                # as the worker object. Done under the lock so that submit(),
+                # which reads __loop while holding it, can never observe the
+                # transition between its own state check and its use.
+                self.__loop = None
                 pending = tuple(self.__pending)
                 self.__pending.clear()
     
@@ -270,8 +287,9 @@ class AioThreadWorker:
 
         # Everything submitted is tracked in __tasks -- including tasks still
         # parked on the semaphore -- so gathering until the set is empty drains
-        # all of it. Re-checked in a loop because draining work may itself
-        # schedule more work on this loop.
+        # all of it. Looped rather than gathered once because a task scheduled
+        # just before the drain began can register itself in __tasks while an
+        # earlier gather() is already running.
         while self.__tasks:
             await asyncio.gather(*self.__tasks, return_exceptions=True)
 
@@ -384,6 +402,20 @@ class AioThreadWorker:
         return thread is not None and not thread.is_alive()
 
     def get_loop(self) -> asyncio.AbstractEventLoop:
+        """Return the worker's running event loop.
+
+        Use it only to put work on the loop from outside -- call_soon_threadsafe()
+        and run_coroutine_threadsafe(). Never drive the loop's own state through
+        it: stop(), close(), run_forever() and run_until_complete() belong to the
+        worker, which owns this loop and tears it down through asyncio.run() once
+        join() has drained it. Call join() to shut the worker down.
+
+        Stopping or closing the loop here bypasses that path and leaves the
+        worker describing a state it is no longer in: submit() still sees a live
+        worker, so it schedules onto a loop that will never run the work, the
+        submitted coroutine is left un-awaited, and the caller gets an error
+        raised from inside asyncio rather than a clear one from this class.
+        """
         loop = self.__loop
 
         if loop is None or not self.is_running():
@@ -419,10 +451,18 @@ class AioThreadWorker:
                 daemon=True,
             )
 
-            del self.__name
-
+            # Assigned before start() because __bootstrap checks it, and undone
+            # if the OS refuses the thread -- otherwise a worker that never ran
+            # would report itself as finished and could never be started.
             self.__thread = thread
-            thread.start()
+
+            try:
+                thread.start()
+            except :
+                self.__thread = None
+                raise
+
+            del self.__name
 
         deadline = None if wait is None else time.monotonic() + wait
 
@@ -430,6 +470,11 @@ class AioThreadWorker:
         # is reported instead of hanging the caller forever.
         while not self.__running.wait(0.005):
             if not thread.is_alive():
+                # A concurrent join() can set, drain and clear __running between
+                # two polls; that is a completed run, not a failed startup.
+                if self.is_stopping():
+                    return
+
                 raise RuntimeError(
                     "worker thread died during startup -- see the traceback "
                     "reported by threading.excepthook for the cause"
@@ -447,12 +492,9 @@ class AioThreadWorker:
                 "calling task is itself in-flight work, so waiting for the "
                 "worker to drain here would deadlock"
             )
-
-        was_stopping = False
         
         with self.__lock:
-            if self.is_stopping():
-                was_stopping = True
+            was_stopping = self.is_stopping()
 
             if not was_stopping:
                 self.__stopping.set()
@@ -460,8 +502,17 @@ class AioThreadWorker:
             if not self.is_started():
                 return
 
-            if not was_stopping and self.__drain is not None and not self.__loop.is_closed():
-                self.__loop.call_soon_threadsafe(self.__drain.set)
+            loop = self.__loop
+            drain = self.__drain
+
+            # __loop is what marks setup complete, so it is checked rather than
+            # __drain, which is published first. The guard is still not enough
+            # on its own: the loop can close between the check and the call.
+            if not was_stopping and loop is not None and drain is not None:
+                try:
+                    loop.call_soon_threadsafe(drain.set)
+                except RuntimeError:
+                    pass  # loop already closed -- the worker is gone anyway
 
             thread = self.__thread
 
@@ -493,11 +544,12 @@ class AioThreadWorker:
         *args: _P.args,
         **kwargs: _P.kwargs,
         ) -> _T:
-        """Schedule `func(*args, **kwargs)` on the worker's loop.
+        """Schedule `func(*args, **kwargs)` on the worker's loop and await it.
 
         `func` must be a coroutine function; calling it here only builds a
         coroutine object, which touches no event loop and is therefore safe
-        from any thread. Returns an awaitable handle.
+        from any thread. The result is awaited on the caller's own loop, and
+        cancelling this await cancels the work on the worker's loop too.
         """
 
         coro = func(*args, **kwargs)
@@ -510,14 +562,11 @@ class AioThreadWorker:
 
         with self.__lock:
             try:
-                if not self.is_running():
-                    raise RuntimeError("worker is closed")
-
-                if self.is_stopping():
-                    raise RuntimeError("worker is stopping")
-            except RuntimeError:
+                assert self.is_running(), "worker is closed"
+                assert not self.is_stopping(), "worker is stopping"
+            except AssertionError as m:
                 coro.close()
-                raise
+                raise RuntimeError(str(m)) from None
 
             
 
@@ -526,9 +575,18 @@ class AioThreadWorker:
             # run_coroutine_threadsafe returns.
             holder: "list[Future[_T]]" = []
 
-            handle = asyncio.run_coroutine_threadsafe(
-                self.__run_task(coro, holder), self.__loop
-            )
+            # Bound to a name first so both it and the user's coroutine can be
+            # closed if scheduling fails -- is_running() above does not prove
+            # the loop is still open, and a closed one makes
+            # run_coroutine_threadsafe raise before it ever awaits either.
+            task_coro = self.__run_task(coro, holder)
+
+            try:
+                handle = asyncio.run_coroutine_threadsafe(task_coro, self.__loop)
+            except :
+                task_coro.close()
+                coro.close()
+                raise
 
             holder.append(handle)
 
@@ -536,6 +594,24 @@ class AioThreadWorker:
 
         try:
             return await asyncio.wrap_future(handle)
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            # Task.cancelling() is 3.11+; without it the two cases below are
+            # indistinguishable, so the plain CancelledError is kept.
+            cancelling = getattr(task, "cancelling", None)
+
+            # The handle is cancelled both when our caller cancels this await
+            # and when the worker's loop tears down with work still in flight:
+            # asyncio.run()'s _cancel_all_tasks() reaches the handles before
+            # __bootstrap can fail them. Only the first is a real cancellation
+            # -- reporting the second as one silently marks the caller's own
+            # task cancelled instead of telling it why the work never ran.
+            if cancelling is not None and cancelling() == 0 and handle.cancelled():
+                raise RuntimeError(
+                    "AioThreadWorker stopped before this task completed"
+                ) from None
+
+            raise
         finally:
             with self.__lock:
                 self.__pending.discard(handle)
