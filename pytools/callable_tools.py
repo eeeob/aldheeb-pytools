@@ -3,7 +3,7 @@ from typing import (
     Optional, Tuple, Type, TypeAlias, Union, overload,
 )
 
-from .typings import NestedContainer, _T, _P, _FT, _True
+from .typings import NestedContainer, _T, _P, _FT, _True, _False, _ExcT
 from .validate_tools import iscoroutinefunction_wrapped
 from .iter_tools import flat_cont, to_frozenset
 from .async_tools import run_awaitable_in_coro
@@ -11,6 +11,7 @@ from ._async_tools import _get_running_loop
 
 import asyncio
 import functools
+
 
 
 _ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
@@ -24,6 +25,33 @@ def safe_call(
     exclude_exc: _ExcFilter = None,
     **kwargs: _P.kwargs,
 ) -> Optional[_T]: ...
+@overload
+def safe_call(
+    func: Callable[_P, _T],
+    *args: _P.args,
+    return_exc: _False,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    **kwargs: _P.kwargs,
+) -> Optional[_T]: ...
+@overload
+def safe_call(
+    func: Callable[_P, _T],
+    *args: _P.args,
+    return_exc: _True,
+    include_exc: Type[_ExcT],
+    exclude_exc: _ExcFilter = None,
+    **kwargs: _P.kwargs,
+) -> Union[_T, _ExcT]: ...
+@overload
+def safe_call(
+    func: Callable[_P, _T],
+    *args: _P.args,
+    return_exc: _True,
+    include_exc: Tuple[Type[_ExcT], ...],
+    exclude_exc: _ExcFilter = None,
+    **kwargs: _P.kwargs,
+) -> Union[_T, _ExcT]: ...
 @overload
 def safe_call(
     func: Callable[_P, _T],
@@ -51,6 +79,8 @@ def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc =
 
     try:
         return func(*args, **kwargs)
+    except (SystemExit, KeyboardInterrupt):
+        raise
     except BaseException as e:
         if exclude_exc is not None and isinstance(e, exclude_exc):
             raise

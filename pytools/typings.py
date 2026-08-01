@@ -86,6 +86,7 @@ _CT = TypeVar("_CT", bound=type)
 _FT = TypeVar("_FT", bound=Callable[..., Any])
 _KT = TypeVar("_KT")
 _VT = TypeVar("_VT")
+_ExcT = TypeVar("_ExcT", bound=BaseException)
 _EnumT = TypeVar("_EnumT", bound=Enum)
 
 _True = Literal[True]
@@ -114,7 +115,7 @@ __all__ = (
     "MaybeContainer", "JsonValue",
     "_P", "_T", "_CT", "_FT",
     "_KT", "_VT", "_True", "_False",
-    "_EnumT",
+    "_EnumT", "_ExcT", 
 
 
 )
