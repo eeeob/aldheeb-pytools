@@ -5,7 +5,7 @@ from typing import (
 
 from .typings import NestedContainer, _T, _P, _FT, _True, _False, _ExcT
 from .validate_tools import iscoroutinefunction_wrapped
-from .iter_tools import flat_cont, to_frozenset
+from .iter_tools import iter_flat_cont, to_frozenset
 from .async_tools import run_awaitable_in_coro
 from ._async_tools import _get_running_loop
 
@@ -15,6 +15,10 @@ import functools
 
 
 _ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
+
+# SystemExit/KeyboardInterrupt always propagate out of safe_call, unconditionally
+# -- there is no override, so exclude_exc can never usefully name them.
+_HARD_PROPAGATE = (SystemExit, KeyboardInterrupt)
 
 
 @overload
@@ -72,14 +76,23 @@ def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc =
     exclude_exc=FileNotFoundError` swallows every OSError but that one. Each
     takes a single class or a tuple of them, exactly like `except`.
 
-    With neither, every BaseException is swallowed, KeyboardInterrupt and
-    SystemExit included; pass `exclude_exc=(KeyboardInterrupt, SystemExit)` to
-    keep those escaping.
+    SystemExit and KeyboardInterrupt always propagate, unconditionally --
+    neither can be swallowed, and there is no way to opt back in via
+    `include_exc`. Naming either of them (or a subclass) in `exclude_exc` is
+    redundant and raises TypeError immediately, before `func` is even called.
     """
+
+    if exclude_exc is not None:
+        for exc_type in exclude_exc if isinstance(exclude_exc, tuple) else (exclude_exc,):
+            if issubclass(exc_type, _HARD_PROPAGATE):
+                raise TypeError(
+                    f"exclude_exc: {exc_type.__name__} always propagates already -- "
+                    "no need to list it"
+                )
 
     try:
         return func(*args, **kwargs)
-    except (SystemExit, KeyboardInterrupt):
+    except _HARD_PROPAGATE:
         raise
     except BaseException as e:
         if exclude_exc is not None and isinstance(e, exclude_exc):
@@ -101,7 +114,7 @@ def raise_if(
     if always and (bool_value is not None or values is not None):
         raise ValueError("raise_if: can't pass bool_value or values when always=True")
 
-    values = to_frozenset(flat_cont(values))
+    values = to_frozenset(iter_flat_cont(values))
 
     @overload
     def decorator(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Coroutine[Any, Any, _T]]: ...
