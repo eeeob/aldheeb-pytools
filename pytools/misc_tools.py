@@ -71,20 +71,44 @@ def generate_secret(
 
 
 def unwrap(obj: Any, with_prop: bool = True) -> Any:
+    """Peel `obj` down to the underlying plain function, through `property`,
+    `functools.partialmethod`, and `__wrapped__`-chain wrappers (decorators
+    using functools.wraps).
+
+    `functools._unwrap_partialmethod` is a private helper (no public
+    equivalent exists) that partialmethod itself uses internally to resolve
+    `__wrapped__` on a partialmethod object; reused here so `unwrap()`
+    handles partialmethod the same way stdlib introspection does.
+    """
+
     if with_prop and isinstance(obj, property):
         obj = obj.fget
-    
+
     return functools._unwrap_partialmethod(inspect.unwrap(obj))
         
     
 def patch_into(
-    target: type, 
-    *, 
-    patch_key: str = "should_patch", 
-    preserve_old: bool = True, 
+    target: type,
+    *,
+    patch_key: str = "should_patch",
+    preserve_old: bool = True,
     setter: Callable[[type, str, Any], None] = setattr,
     ) -> Callable[[_CT], _CT]:
-    
+    """Class decorator: copy every member of the decorated class marked with
+    `patch_key` (an attribute set truthy on the member itself, e.g. via a
+    separate `@should_patch` marker decorator) onto `target`, monkey-patching
+    `target` in place. The decorated class itself is returned unchanged --
+    only `target` is mutated.
+
+    Only members explicitly opted in via `patch_key` are copied, unlike
+    patch_cls() below which copies the whole class body by default. Members
+    are checked through unwrap() so the marker is found even under
+    functools.wraps-style decorators wrapping the actual patched callable.
+
+    If `preserve_old`, an existing `target.name` is saved as `target.oldname`
+    before being overwritten, so the original implementation stays reachable.
+    """
+
     def apply(current_class: _CT) -> _CT:
         for name, member in current_class.__dict__.items():
             if not getattr(unwrap(member), patch_key, False):
@@ -111,12 +135,24 @@ def patch_cls(
     include_dunders: Tuple[str, ...] = ("__init__",),
     ) -> Callable[[_CT], _CT]: ...
 def patch_cls(
-    patch_class: Optional[_CT] = None, 
-    *, 
-    preserve_old: bool = True, 
-    setter: Callable[[type, str, Any], None] = setattr, 
+    patch_class: Optional[_CT] = None,
+    *,
+    preserve_old: bool = True,
+    setter: Callable[[type, str, Any], None] = setattr,
     include_dunders: Tuple[str, ...] = ("__init__",),
     ):
+    """Class decorator: monkey-patch the decorated class's single base with
+    every member of the decorated class's own body, then return the base
+    (not the decorated class) -- so `patch_class` only ever exists to stage
+    the patch and is discarded afterward.
+
+    Unlike patch_into() above, this copies the *entire* class body by
+    default, not just members marked for it -- dunder methods are the
+    exception, skipped unless explicitly named in `include_dunders`, since
+    copying e.g. `__eq__`/`__repr__` unintentionally is rarely what's wanted.
+    Requiring exactly one non-`object` base is what makes "the base" well
+    defined; multiple bases would leave no single unambiguous patch target.
+    """
 
     def _apply(patch_class: type):
         bases = [b for b in patch_class.__bases__ if b is not object]

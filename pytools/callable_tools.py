@@ -11,10 +11,14 @@ from ._async_tools import _get_running_loop
 
 import asyncio
 import functools
+import logging
 
+
+log = logging.getLogger(__name__)
 
 
 _ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
+_ExcLogger: TypeAlias = Union[bool, Callable[[BaseException], Any]]
 
 # SystemExit/KeyboardInterrupt always propagate out of safe_call, unconditionally
 # -- there is no override, so exclude_exc can never usefully name them.
@@ -27,6 +31,7 @@ def safe_call(
     *args: _P.args,
     include_exc: _ExcFilter = None,
     exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
     **kwargs: _P.kwargs,
 ) -> Optional[_T]: ...
 @overload
@@ -36,6 +41,7 @@ def safe_call(
     return_exc: _False,
     include_exc: _ExcFilter = None,
     exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
     **kwargs: _P.kwargs,
 ) -> Optional[_T]: ...
 @overload
@@ -45,6 +51,7 @@ def safe_call(
     return_exc: _True,
     include_exc: Type[_ExcT],
     exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
     **kwargs: _P.kwargs,
 ) -> Union[_T, _ExcT]: ...
 @overload
@@ -54,6 +61,7 @@ def safe_call(
     return_exc: _True,
     include_exc: Tuple[Type[_ExcT], ...],
     exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
     **kwargs: _P.kwargs,
 ) -> Union[_T, _ExcT]: ...
 @overload
@@ -63,9 +71,10 @@ def safe_call(
     return_exc: _True,
     include_exc: _ExcFilter = None,
     exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
     **kwargs: _P.kwargs,
 ) -> Union[_T, BaseException]: ...
-def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc = None, **kwargs):
+def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc = None, log_exc = False, **kwargs):
     """Call `func(*args, **kwargs)`, swallowing whatever it raises.
 
     Returns None on failure, or the exception itself when `return_exc=True`.
@@ -75,6 +84,14 @@ def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc =
     `include_exc` when both match -- so `include_exc=OSError,
     exclude_exc=FileNotFoundError` swallows every OSError but that one. Each
     takes a single class or a tuple of them, exactly like `except`.
+
+    `log_exc` fires only for an exception that ends up actually swallowed
+    (after `include_exc`/`exclude_exc` have let it through) -- one that
+    propagates was never "handled" here, so nothing is logged for it.
+    Pass `True` to log it via this module's logger (with traceback, at
+    ERROR level); pass a callable to receive the exception instead and
+    decide yourself what to do with it. An exception raised by that
+    callable is not caught -- it propagates out of safe_call as-is.
 
     SystemExit and KeyboardInterrupt always propagate, unconditionally --
     neither can be swallowed, and there is no way to opt back in via
@@ -100,6 +117,15 @@ def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc =
 
         if include_exc is not None and not isinstance(e, include_exc):
             raise
+
+        if log_exc:
+            if callable(log_exc):
+                try:
+                    log_exc(e)
+                except BaseException as le:
+                    raise le from e
+            else:
+                log.error("error in safe_call(%r)" % (func,), exc_info=e)
 
         if return_exc:
             return e

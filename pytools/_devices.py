@@ -29,6 +29,15 @@ class DeviceInfo:
         return cls(model, version)
 
 class SystemInfo:
+    """Base for the per-platform device-spoofing catalogs below.
+
+    RandomDevice() picks a device deterministically from `unique_id`: the same
+    `unique_id` always maps to the same device (via SHA-1 -> int -> index), so
+    repeated calls for the same identity keep returning consistent, believable
+    "hardware" instead of a fresh random device every time. Passing no
+    `unique_id` falls back to os.urandom(), which is why it's still called
+    "Random"Device -- deterministic is the opt-in case, not the default.
+    """
 
     deviceList: List[DeviceInfo] = []
     system_versions: List[str] = []
@@ -554,11 +563,16 @@ class AndroidDevice(SystemInfo):
     def _RandomDevice(cls, hash_id: int):
         cls.__gen__()
 
+        # Two-stage pick instead of the flat _hashtovalue() the other
+        # platforms use, because devices are grouped by SDK here: first
+        # `hash_id` selects an SDK, then a second derived index (the same
+        # `hash_id` with the SDK's own contribution divided out) selects a
+        # device within that SDK's list. Both stages are pure functions of
+        # `hash_id`, so the same unique_id -> same SDK -> same device.
         sdk_order = [sdk for sdk in cls.system_versions if cls.deviceList_by_sdk.get(sdk)]
         sdk_version = cls._hashtovalue(hash_id, sdk_order)
         sdk_devices = cls.deviceList_by_sdk[sdk_version]
 
-        # mismo unique_id -> mismo SDK -> mismo dispositivo dentro de ese SDK
         device_index = (hash_id // max(1, len(sdk_order))) % len(sdk_devices)
         return sdk_devices[device_index]
 

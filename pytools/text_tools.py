@@ -51,6 +51,19 @@ def split_part(
         return value
 
 def chunk_text(text: str, max_length: int = TgMessageLength.TEXT) -> List[str]:
+    """Split `text` into pieces of at most `max_length` characters, preferring
+    to break on a newline, then a space, so words/lines aren't cut mid-way.
+
+    Break point priority within one `max_length`-sized window:
+      1. the last newline in it, if any;
+      2. else the last space, but only if it falls in the later 90% of the
+         window (`> len(chunk) // 10`) -- a space found near the very start
+         would produce a near-empty chunk and barely shrink `remaining`,
+         so a match that close to the front is treated as "no usable space"
+         and falls through to the hard cut instead;
+      3. else a hard cut at exactly `max_length`, mid-word if necessary.
+    """
+
     if len(text) <= max_length:
         return [text]
 
@@ -77,6 +90,16 @@ def chunk_text(text: str, max_length: int = TgMessageLength.TEXT) -> List[str]:
     return chunks
 
 def format_exc_tree(exc: BaseException) -> str:
+    """Render `exc` and its chained causes/contexts as an indented tree, one
+    line per exception, deepest cause last.
+
+    `__cause__ or __context__` follows whichever chaining Python actually
+    used: `__cause__` is set by explicit `raise X from Y`, `__context__` is
+    set implicitly whenever an exception is raised while another is already
+    being handled. Preferring `__cause__` matches how the traceback module
+    itself decides which chain to print.
+    """
+
     def iter_exc():
         current = exc
         level = 0
@@ -219,15 +242,26 @@ def smart_split(
     separator: Union[str, Callable[[], str]],
 ) -> List[str]: ...
 def smart_split(
-    text: NestedContainer[str], 
-    indexing = None, 
-    part_resolver = None, 
-    strip = False, 
-    remove_spaces = False, 
-    max_split = -1, 
-    *, 
-    separator, 
+    text: NestedContainer[str],
+    indexing = None,
+    part_resolver = None,
+    strip = False,
+    remove_spaces = False,
+    max_split = -1,
+    *,
+    separator,
     ):
+    """Split `text` on `separator`, then optionally index/strip/convert the parts.
+
+    `text` may already be a container of strings instead of a single string
+    -- in that case `separator`/`max_split` are skipped and the container is
+    just flattened, so this doubles as "accept either a string to split or an
+    already-split sequence of parts" for callers that don't know which they
+    have. `separator` may be a zero-arg callable, resolved once per call, for
+    separators that need to be computed (e.g. a compiled regex's pattern).
+    `indexing` (an int or slice) then narrows down to specific part(s); an int
+    index returns that single part unwrapped rather than a one-item list.
+    """
 
     if callable(separator):
         separator = separator()

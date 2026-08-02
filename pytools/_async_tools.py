@@ -40,11 +40,17 @@ class _GatheringFuture(asyncio.Future):
 
 
         def cancel(self, msg: Optional[Any] = None) -> bool:
+            # Cancelling the outer future does not cancel *this* future
+            # immediately -- it forwards the request to every child and lets
+            # them unwind first, exactly like asyncio.gather(). _done_callback
+            # only turns `outer` itself into a CancelledError once every child
+            # has actually finished (npending == 0); until then `outer` stays
+            # pending even though a cancellation is already in flight.
             if self.done():
                 return False
-            
+
             ret = False
-            
+
             for child in self._children:
                 if child.cancel(msg=msg):
                     ret = True
@@ -60,6 +66,35 @@ def _gather_cancel_on_error(*awaitables: Awaitable[_T], return_exceptions: _Fals
 @overload
 def _gather_cancel_on_error(*awaitables: Awaitable[_T], return_exceptions: _True) -> asyncio.Future[List[Union[_T, Exception]]]:...
 def _gather_cancel_on_error(*awaitables, return_exceptions = False):
+    """Reimplementation of asyncio.gather() that cancels every sibling as soon
+    as one fails (asyncio.gather() itself leaves the rest running).
+
+    `_done_callback` fires once per child future and does one of three things:
+      - if `outer` is already resolved (a prior sibling failed first, or the
+        caller cancelled `outer` itself -- see _GatheringFuture.cancel above),
+        the result/exception is only drained via fut.exception() so asyncio's
+        "exception was never retrieved" warning doesn't fire on a future
+        nobody will ever await again;
+      - if this child failed and `return_exceptions` is False, `outer` is
+        failed with that exception and every other still-running child is
+        cancelled -- this is the actual "cancel on error" behavior;
+      - once every child has reported in (`npending == 0`), results are
+        collected in the original awaitables order and `outer` is resolved --
+        as a success, or as CancelledError if `outer` was cancelled while
+        children were still finishing (see _GatheringFuture.cancel, which
+        lets already-running children finish instead of force-stopping them).
+
+    `awaitable_2_fut` deduplicates: passing the same awaitable twice must not
+    schedule it twice or count it twice toward `npending`, since asyncio.gather
+    has the same behavior for repeated arguments.
+
+    On 3.14+, `future_add_to_awaited_by`/`future_discard_from_awaited_by` keep
+    each child's "awaited by" introspection link pointed at the *caller's*
+    task instead of this function's internal bookkeeping -- otherwise tools
+    like asyncio's task graph (or Task.print_stack()) would show the children
+    as awaited by a frame that already returned.
+    """
+
     if not awaitables:
         outer = asyncio.get_event_loop().create_future()
         outer.set_result([])

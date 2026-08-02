@@ -179,15 +179,27 @@ class DelayedCallback(Generic[_T]):
 
     
     async def wait(self) -> Optional[_T]:
+        """Wait out `delay`, then run `callback` -- unless cancel() sets
+        `cancel_event` first, in which case the callback never runs at all.
+
+        The control flow here is inverted from what the names suggest:
+        waiting for `cancel_event` to fire is the thing being awaited, and
+        *timing out* on that wait -- i.e. `cancel_event` was never set within
+        `delay` -- is the success path that goes on to run the callback.
+        `cancel_event` actually firing means "cancelled", and simply lets the
+        `wait_for` return normally with no TimeoutError, skipping the
+        callback entirely.
+        """
+
         try:
             await asyncio.wait_for(self.cancel_event.wait(), timeout=self.delay)
         except asyncio.TimeoutError:
             self.callback_started = True
 
             return await maybe_awaitable(
-                self.callback, 
-                *(self.args or ()), 
-                **(self.kw or {}) 
+                self.callback,
+                *(self.args or ()),
+                **(self.kw or {})
             )
 
         finally:
@@ -201,6 +213,18 @@ class DelayedCallback(Generic[_T]):
         return self._task
 
     async def cancel(self, force: bool = False) -> None:
+        """Stop this DelayedCallback: during the delay this always prevents
+        the callback from ever starting; once the callback has *started*
+        running, `force=False` (the default) lets it finish undisturbed and
+        only `force=True` actually cancels the in-flight task.
+
+        `callback_started` is set the instant `wait_for` times out, before
+        `callback` itself is awaited -- so there is a real (if narrow) window
+        where cancel() has already observed `callback_started=True` and will
+        skip task.cancel() even though the callback hasn't executed a single
+        line yet.
+        """
+
         task = self._task
 
         if task is None:

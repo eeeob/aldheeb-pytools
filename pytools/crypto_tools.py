@@ -46,6 +46,13 @@ def _drive_deterministic_key(password: str) -> bytes:
 
 @_optional_import(("cryptography", "crypto"))
 def encrypt(data: Union[bytes, str], password: str) -> bytes:
+    """AES-GCM encryption with a random salt and nonce, prepended to the
+    ciphertext so decrypt() can recover them without a separate channel.
+    Encrypting the same `data`/`password` twice produces different output
+    each time. See d_encrypt() below for the deterministic alternative and
+    why picking the wrong one of the two is a real security mistake.
+    """
+
     if isinstance(data, str):
         data = data.encode()
 
@@ -89,6 +96,18 @@ def decrypt(encrypted_data: bytes, password: str, data_resolver=None):
 
 @_optional_import(("cryptography", "crypto"))
 def d_encrypt(data: Union[bytes, str], password: str) -> bytes:
+    """AES-SIV deterministic encryption ("d_" = deterministic): the same
+    `data`/`password` always produces the exact same ciphertext, because the
+    key is derived from `password` alone (via _drive_deterministic_key(),
+    with no random salt) and AES-SIV needs no nonce.
+
+    Deliberate tradeoff, not a bug: determinism means an attacker who sees
+    two ciphertexts can tell whether the underlying plaintexts are equal,
+    which encrypt() above is specifically designed to prevent. Use this only
+    when that equality needs to stay checkable (e.g. as a lookup key) and use
+    encrypt() for everything else.
+    """
+
     if isinstance(data, str):
         data = data.encode()
     

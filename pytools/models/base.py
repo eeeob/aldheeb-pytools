@@ -21,6 +21,20 @@ import json
 
 @dataclass
 class BaseDataClass:
+    """Dataclass base providing dict (de)serialization with two conventions:
+
+      - a leading underscore on a field name (`_foo`) makes it "private": a
+        `foo` property proxying to `_foo` is auto-generated, and to_dict()/
+        from_dict() (but not the *_raw_dict variants) expose/accept it under
+        the public `foo` name instead of `_foo`;
+      - enum-typed fields (found anywhere in a field's type hint, including
+        nested inside Optional/List/etc.) can be round-tripped between enum
+        members and their raw values via `enums_to_values`/`values_to_enums`.
+
+    All of this is computed once per subclass and cached as class attributes
+    by _ensure_field_meta() -- see there for how fields/enums are discovered.
+    """
+
     __public_field_names__: ClassVar[List[str]]
     __private_field_names__: ClassVar[List[str]]
     __raw_private_fields__: ClassVar[FrozenSet[str]]
@@ -28,6 +42,22 @@ class BaseDataClass:
 
     @classmethod
     def _ensure_field_meta(cls) -> None:
+        """Compute and cache, once per subclass, which fields are public vs.
+        private and which enum classes appear anywhere in the field
+        annotations -- both to_dict()/from_dict() and the enum conversion in
+        data_tools.value_to_enum()/enum_to_value() rely on this.
+
+        Cached on `cls` itself via `"__public_field_names__" in vars(cls)`
+        (not `hasattr`, which would also see an inherited base's cache) so
+        each subclass gets its own metadata instead of silently reusing a
+        parent's.
+
+        `_deep_extract` walks a field's type hint recursively via
+        get_origin()/get_args() to find every Enum class inside it -- so
+        `Optional[SomeEnum]`, `List[SomeEnum]`, `Dict[str, SomeEnum]` etc. are
+        all detected, not just a bare `SomeEnum` annotation.
+        """
+
         if "__public_field_names__" in vars(cls):
             return
 

@@ -59,6 +59,20 @@ def _optional_import(*packages: Tuple[Union[str, Tuple[str, ...]], str]):
     return decorator
 
 def _unavailable_class(name: str, *packages: Tuple[Union[str, Tuple[str, ...]], str]):
+    """Build a stand-in class for a public class whose optional dependency is
+    missing, so the module can still define the name and import cleanly --
+    only *using* the class raises, not importing it.
+
+    A plain class with a raising __new__ would stop instantiation but not
+    class-level access: `SomeClass.some_attr`, `isinstance(x, SomeClass)`, and
+    `class Sub(SomeClass)` would all still silently succeed against a
+    half-real class. _UnavailableMeta closes those paths too, by overriding
+    the same three operations at the *metaclass* level (__getattr__ for class
+    attribute access, __instancecheck__/__subclasscheck__ for isinstance()/
+    issubclass()), so every one of them raises the same helpful ImportError
+    instead of behaving as if the class were real but empty.
+    """
+
     missing = _get_missing(packages)
 
     if not missing:

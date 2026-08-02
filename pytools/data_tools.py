@@ -46,10 +46,24 @@ def value_to_enum(
     enum_classes: NestedContainer[Type[_EnumT]], 
     ) -> Union[_EnumT, _T]: ...
 def value_to_enum(
-    values: Any, 
-    enum_classes: NestedContainer[Type[_EnumT]], 
+    values: Any,
+    enum_classes: NestedContainer[Type[_EnumT]],
     map_resolve_type = "v"
     ):
+    """Recursively replace raw values with their matching enum member,
+    wherever one of `enum_classes` has a member with that value.
+
+    `enum_map` is built once from every class's `_value2member_map_` (the
+    private dict Enum itself maintains for `SomeEnum(value)` lookups), so
+    later classes in `enum_classes` silently win over earlier ones on a
+    value collision. Values with no matching member pass through unchanged
+    -- this is a best-effort convert, not a validating one.
+
+    For a mapping, `map_resolve_type` picks which side gets converted:
+    `"k"` converts keys and leaves values alone, `"v"` (default) converts
+    values and leaves keys alone. Containers/mappings are rebuilt with
+    `type(v)(...)` so the original container type is preserved.
+    """
 
     map_resolve_type = map_resolve_type.lower()
 
@@ -102,14 +116,27 @@ def get_nested_dict_value(dct: NestedStrKeyDict[_T], path: str, sep: str = ".") 
     return dct
 
 def get_nested_dict_key(path_dct: NestedStrKeyDict[Literal[True, 1]], sep: str = ".") -> str:
+    """Inverse of get_nested_dict_value(): given a single-branch nested dict
+    that marks one path with a leaf of `True`/`1` (e.g. `{"a": {"b": True}}`),
+    return that path joined by `sep` (`"a.b"`).
+
+    NOTE: the leaf-value check below (`value != 1: value = value.numerator`)
+    only rejects non-numeric leaves -- `.numerator` raises AttributeError for
+    those, but for any *other* number (e.g. a leaf of `2`) `.numerator`
+    succeeds and its result is discarded, so an invalid leaf like `2` is
+    silently accepted instead of rejected. This looks like leftover/incomplete
+    validation rather than intended behavior; flagging here rather than
+    silently treating it as correct.
+    """
+
     def flatten(current_dict: NestedStrKeyDict[Literal[True, 1]], current_path: str = "") -> Tuple[str, Literal[1]]:
         key, value = next(iter(current_dict.items()))
-        
+
         new_path = f"{current_path}{sep}{key}" if current_path else key
-        
+
         if isinstance(value, dict):
             return flatten(value, new_path)
-        
+
         if value != 1:
             value = value.numerator
         

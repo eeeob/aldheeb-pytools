@@ -191,6 +191,17 @@ def is_email(email: Any) -> TypeIs[str]:
     and bool(EMAIL_PATTERN.fullmatch(email))
 
 def iscoroutinefunction_wrapped(f):
+    """Like inspect.iscoroutinefunction(), but also sees through wrappers.
+
+    inspect.iscoroutinefunction() only inspects `f` itself, so a sync def
+    wrapping an async function (e.g. functools.wraps-style decorators that
+    don't forward the coroutine-ness of the wrapped callable) reads as a
+    plain function. inspect.unwrap() walks the `__wrapped__` chain instead;
+    `_stop` is its stop-condition callback, called on every object in that
+    chain -- as soon as one of them is itself a coroutine function, it
+    records that and tells unwrap() to stop early there.
+    """
+
     is_coro = False
 
     def _stop(func):
@@ -267,6 +278,24 @@ def any_deep(*values: NestedContainer[Any]) -> bool:
 
 
 def checker_lookup(origin_type: Any, *_):
+    """typeguard checker_lookup_functions hook (registered at import time,
+    below), giving check_type()/validate_type() two behaviors typeguard
+    doesn't have out of the box:
+
+      - checking a value against an Enum class succeeds for any of that
+        enum's *values*, not just its members -- `check_type(1, SomeIntEnum)`
+        passes if `SomeIntEnum(1)` is valid, without requiring the caller to
+        already hold an enum member;
+      - checking a value against this package's own `Container` type (e.g.
+        `NestedContainer[int]`) recurses into it and validates every element
+        against the type argument, since typeguard has no built-in notion of
+        this project's Container union.
+
+    typeguard calls every registered lookup with the type being checked and
+    returns the first non-None validator; returning None here means "not one
+    of ours, let typeguard's own lookups handle it".
+    """
+
     def validate_enum(value, origin_type: Type[Enum], *_):
         try:
             origin_type(value)
