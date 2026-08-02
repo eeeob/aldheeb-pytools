@@ -4,6 +4,11 @@ from typing import (
     overload, Type, TypeVar
 )
 
+try:
+    from typing import Self
+except ImportError:  # Python < 3.11
+    from typing_extensions import Self
+
 from types import MethodType
 from functools import partial, cached_property
 from datetime import datetime, timezone, timedelta
@@ -159,7 +164,53 @@ class KeyDefaultDict(Dict[_KT, _VT]):
     def __call__(self, key: _KT) -> _VT:
         return self[key]
 
-class WeakRestrictedProxy(wrapt.ObjectProxy):
+class RestrictedProxy(wrapt.ObjectProxy):
+    """A proxy that restricts access to named attributes on the wrapped object.
+
+    The wrapped object is exposed through `wrapt.ObjectProxy`, but attribute
+    reads and writes are filtered by either a deny-list (`blocked`) or an
+    allow-list (`allowed`). Passing both at once raises `ValueError`.
+
+    The internal proxy state uses the `'_self_'` namespace reserved by
+    `wrapt`, so `_self_blocked` and `_self_allowed` are stored without being
+    intercepted by the restriction checks.
+    """
+
+    def __init__(
+        self,
+        obj: Any,
+        blocked: Optional["MaybeContainer[str]"] = None,
+        allowed: Optional["MaybeContainer[str]"] = None,
+        ):
+
+        blocked = to_frozenset(blocked)
+        allowed = to_frozenset(allowed)
+
+        if blocked and allowed:
+            raise ValueError("blocked and allowed cannot both be provided")
+
+        super().__init__(obj)
+
+        self._self_blocked = blocked
+        self._self_allowed = allowed or None
+
+    def _check(self, name):
+        if self._self_allowed is not None:
+            if name not in self._self_allowed:
+                raise AttributeError(f"Attribute '{name}' is not allowed")
+        elif name in self._self_blocked:
+            raise AttributeError(f"Attribute '{name}' is blocked")
+
+    def __getattr__(self, name):
+        self._check(name)
+        return super().__getattr__(name)
+
+    def __setattr__(self, name, value):
+        if not name.startswith('_self_'):
+            self._check(name)
+        super().__setattr__(name, value)
+
+class WeakRestrictedProxy(RestrictedProxy):
     """A transparent proxy that hands out an object without handing out full
     control of it: named attributes raise AttributeError instead of resolving,
     and the reference held is weak, so the proxy never keeps the target alive.
@@ -177,44 +228,17 @@ class WeakRestrictedProxy(wrapt.ObjectProxy):
     """
 
     def __init__(
-        self,
-        obj: _T,
-        blocked: Optional["MaybeContainer[str]"] = None,
-        allowed: Optional["MaybeContainer[str]"] = None,
-        callback: Optional[Callable[[_T], Any]] = None
+            self,
+            obj: _T,
+            blocked: Optional["MaybeContainer[str]"] = None,
+            allowed: Optional["MaybeContainer[str]"] = None,
+            callback: Optional[Callable[[_T], Any]] = None
         ):
-
-        blocked = to_frozenset(blocked)
-        allowed = to_frozenset(allowed)
-
-        if blocked and allowed:
-            raise ValueError("blocked and allowed cannot both be provided")
-
         super().__init__(
-            weakref.proxy(obj, callback)
-        )
-
-        self._self_blocked = blocked
-        self._self_allowed = allowed or None
-
-    def _check(self, name):
-        if self._self_allowed is not None:
-            if name not in self._self_allowed:
-                raise AttributeError(f"Attribute '{name}' is not allowed")
-        elif name in self._self_blocked:
-            raise AttributeError(f"Attribute '{name}' is blocked")
-
-    def __getattr__(self, name):
-        self._check(name)
-        return super().__getattr__(name)
-
-    def __setattr__(self, name, value):
-        # `_self_*` is wrapt's namespace for the proxy's own state, so it must
-        # bypass _check() -- otherwise __init__ could not store the very
-        # allow/deny lists that _check() reads.
-        if not name.startswith('_self_'):
-            self._check(name)
-        super().__setattr__(name, value)
+            weakref.proxy(obj, callback), 
+            blocked, 
+            allowed, 
+            )
 
 class AioThreadWorker:
     """Runs coroutine functions on a private event loop in its own thread.
@@ -673,53 +697,6 @@ class AioThreadWorker:
         return self.join().__await__()
 
     # ---------------- submission ----------------
-
-    async def __run_task(self, awaitable_factory: Callable[[], Awaitable[_T]]) -> _T:
-        """Wrapper every submission actually runs as, on the worker's loop.
-
-        Takes a factory rather than a ready awaitable so `func(*args)` is
-        called here, on the worker's loop -- a coroutine function that touches
-        the running loop while being *called* would otherwise bind to the
-        submitting thread's loop, or fail outright if that thread has none.
-        """
-
-        awaitable = awaitable_factory()
-
-        if not inspect.isawaitable(awaitable):
-            raise TypeError(
-                f"func must be a awaitable function; calling it returned "
-                f"{type(awaitable).__name__!r}"
-            )
-
-        task = asyncio.current_task()
-
-        # Captured once: teardown nulls these, and a task scheduled just before
-        # that must still untrack itself from the very set it registered in.
-        tasks = self.__tasks
-        slots = self.__slots
-
-        # Registered before awaiting anything, so join()'s drain loop sees this
-        # task even while it is only parked on the semaphore below.
-        if tasks is not None:
-            tasks.add(task)
-
-        try:
-            if slots is None:
-                return await awaitable
-
-            # A semaphore rather than a counter/condition pair: release() is
-            # synchronous, so the slot is returned even while the task is being
-            # cancelled -- an awaited release could itself be interrupted and
-            # leak the slot permanently.
-            await slots.acquire()
-
-            try:
-                return await awaitable
-            finally:
-                slots.release()
-        finally:
-            if tasks is not None:
-                tasks.discard(task)
     
     async def submit(
         self,
@@ -728,6 +705,7 @@ class AioThreadWorker:
         *args: _P.args,
         **kwargs: _P.kwargs,
         ) -> _T:
+
         """Run `func(*args, **kwargs)` on the worker's loop and await its result.
 
         `func` must be an awaitable function. It is *called* on the worker's
@@ -742,6 +720,53 @@ class AioThreadWorker:
         the caller's own cancellation.
         """
 
+        async def run_task():
+            """Wrapper every submission actually runs as, on the worker's loop.
+    
+            Takes a factory rather than a ready awaitable so `func(*args)` is
+            called here, on the worker's loop -- a coroutine function that touches
+            the running loop while being *called* would otherwise bind to the
+            submitting thread's loop, or fail outright if that thread has none.
+            """
+    
+            awaitable = func(*args, **kwargs)
+    
+            if not inspect.isawaitable(awaitable):
+                raise TypeError(
+                    f"func must be a awaitable function; calling it returned "
+                    f"{type(awaitable).__name__!r}"
+                )
+    
+            task = asyncio.current_task()
+    
+            # Captured once: teardown nulls these, and a task scheduled just before
+            # that must still untrack itself from the very set it registered in.
+            tasks = self.__tasks
+            slots = self.__slots
+    
+            # Registered before awaiting anything, so join()'s drain loop sees this
+            # task even while it is only parked on the semaphore below.
+            if tasks is not None:
+                tasks.add(task)
+    
+            try:
+                if slots is None:
+                    return await awaitable
+    
+                # A semaphore rather than a counter/condition pair: release() is
+                # synchronous, so the slot is returned even while the task is being
+                # cancelled -- an awaited release could itself be interrupted and
+                # leak the slot permanently.
+                await slots.acquire()
+    
+                try:
+                    return await awaitable
+                finally:
+                    slots.release()
+            finally:
+                if tasks is not None:
+                    tasks.discard(task)
+
         # Fast path only -- deliberately lock-free, and stripped entirely under
         # `python -O`. get_loop() inside coro() is the check that actually
         # matters; see the class docstring.
@@ -755,10 +780,14 @@ class AioThreadWorker:
             # Re-validated here, immediately before the hand-off: this is the
             # narrow point where a concurrent join() would otherwise let work
             # be scheduled onto a loop that is already tearing down.
+            current_loop = asyncio.get_running_loop()
             loop = self.get_loop()
 
+            if current_loop == loop:
+                return await run_task()
+
             return await asyncio.wrap_future(
-                asyncio.run_coroutine_threadsafe(self.__run_task(partial(func, *args, **kwargs)), loop)
+                asyncio.run_coroutine_threadsafe(run_task(), loop)
             )
 
         try:
@@ -780,6 +809,14 @@ class AioThreadWorker:
         
 
     __call__ = submit
+
+
+    async def __aenter__(self) -> Self:
+        self.run()
+        return self
+
+    async def __aexit__(self, *_) -> None:
+        await self.join()
 
 
 if HAS_PYMONGO:
@@ -866,7 +903,7 @@ class SyncAwaitableRunner:
         self.__loop: Optional[asyncio.AbstractEventLoop] = None
         self.__thread: Optional[threading.Thread] = None
         self.__closed = False
-        self.__start_lock = threading.Lock()
+        self.__start_lock = threading.RLock()
 
         if not lazy:
             self.__ensure_started()
@@ -969,7 +1006,7 @@ class SyncAwaitableRunner:
             self.__loop.call_soon_threadsafe(self.__loop.stop)
             self.__thread.join()
 
-    def __enter__(self) -> "SyncAwaitableRunner":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_exc_info) -> None:
@@ -993,5 +1030,7 @@ __all__ = (
     "KeyDefaultWeakValueDict",
     "DefaultWeakValueDict",
     "classproperty",
-    "SyncAwaitableRunner",
+    "SyncAwaitableRunner", 
+    "RestrictedProxy", 
+    "WeakRestrictedProxy", 
 )
