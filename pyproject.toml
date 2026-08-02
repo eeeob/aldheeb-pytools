@@ -27,6 +27,7 @@ classifiers = [
 
 dependencies = [
     "typeguard>=4.3",
+    "wrapt>=1.16", 
     "typing_extensions>=4.0; python_version<'3.11'",
 ]
 
