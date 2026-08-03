@@ -24,7 +24,7 @@ from ._optional import _unavailable_class
 
 from .typings import _KT, _VT, _T, _P, Number, MaybeContainer
 from .async_tools import to_thread
-from .callable_tools import run_awaitable_sync, safe_call
+from .callable_tools import run_awaitable_in_coro, safe_call
 from .iter_tools import to_frozenset
 
 import weakref
@@ -882,7 +882,7 @@ class DefaultWeakValueDict(KeyDefaultWeakValueDict[_KT, _VT]):
 
 class SyncAwaitableRunner:
     """Owns a background thread running a persistent asyncio event loop, and
-    lets synchronous code submit awaitables to run on it via run_awaitable_sync().
+    lets synchronous code submit awaitables to it via run_coroutine_threadsafe().
 
     Unlike calling run_awaitable_sync() with no `loop` (which creates and tears
     down a fresh loop per call via asyncio.run()), a SyncAwaitableRunner keeps a
@@ -894,117 +894,249 @@ class SyncAwaitableRunner:
     ...     runner.run(coro_two())
 
     Pass `lazy=True` to defer creating the loop and its thread until the first
-    .run() call, instead of at construction time.
+    .run() call, instead of at construction time. `loop_factory` is forwarded
+    to asyncio.run() on 3.12+ (where that parameter exists); on older versions
+    it is ignored with a warning rather than silently dropped.
+
+    Concurrency contract
+    --------------------
+    `start()` and `close()` are the only methods that take `__lock`, and only
+    around their own bookkeeping -- `run()` itself is lock-free. Two things
+    make that safe:
+
+    - **The loop stays alive for the whole shutdown drain.** close() does not
+      call loop.stop() -- it sets an asyncio.Event (`stopping`) that the
+      worker's own task is awaiting. Only once that task wakes up *and* has
+      drained every other task still on the loop does it return, which is
+      what lets asyncio.run() tear the loop down. A submission that lands
+      while the drain is still spinning gets swept up by the next iteration
+      instead of racing a loop that is already gone.
+    - **The drain re-queries the loop's real task set every iteration**
+      (`asyncio.all_tasks(loop)`) rather than trusting a separately
+      maintained bookkeeping set, so there is nothing that can fall out of
+      sync with what is actually still running.
+
+    A submission that still loses the race against close() surfaces as a
+    fast, clean RuntimeError -- never a hang.
     """
 
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        lazy: bool = False,
+        loop_factory: Optional[Callable[[], asyncio.AbstractEventLoop]] = None,
+        ) -> None:
 
-    def __init__(self, name: Optional[str] = None, lazy: bool = False) -> None:
+        if loop_factory is not None and not callable(loop_factory):
+            raise TypeError(
+                f"loop_factory must be callable, got {type(loop_factory).__name__!r}"
+            )
+
+        # asyncio.run() only gained loop_factory in 3.12, not 3.11.
+        if sys.version_info < (3, 12) and loop_factory is not None:
+            warnings.warn(
+                "loop_factory is ignored on Python < 3.12 "
+                "(asyncio.run() has no loop_factory parameter there); "
+                "falling back to a plain asyncio.run()",
+                stacklevel=2,
+            )
+
         self.__name = name
-        self.__loop: Optional[asyncio.AbstractEventLoop] = None
+        self.__loop_factory = loop_factory
+
+        self.__lock = threading.RLock()
+
         self.__thread: Optional[threading.Thread] = None
-        self.__closed = False
-        self.__start_lock = threading.RLock()
+        self.__loop: Optional[asyncio.AbstractEventLoop] = None
+
+        self.__stopping: Optional[asyncio.Event] = None
+        self.__closed: bool = False
 
         if not lazy:
-            self.__ensure_started()
+            self.start()
 
-    def __ensure_started(self) -> None:
-        if self.__closed:
-            raise RuntimeError(f"{self.__class__.__name__} is closed")
-
-        if self.__thread is not None:
-            return
-
-        with self.__start_lock:
-            if self.__closed:
-                raise RuntimeError(f"{self.__class__.__name__} is closed")
-
-            if self.__thread is not None:
-                return
-
-            loop = asyncio.new_event_loop()
-            started_event = threading.Event()
-
-            thread = threading.Thread(
-                target=self.__worker_loop,
-                args=(loop, started_event),
-                name=self.__name,
-                daemon=True,
-            )
-            thread.start()
-            started_event.wait()
-
-            self.__loop = loop
-            self.__thread = thread
-
-    @staticmethod
-    def __worker_loop(loop: asyncio.AbstractEventLoop, started_event: threading.Event) -> None:
-        loop.call_soon(started_event.set)
-        loop.run_forever()
-
-        # loop.stop() was called and run_forever() returned -- clean up
-        # entirely on this same thread, which owns the loop and is
-        # guaranteed to have no other loop running on it.
-        try:
-            to_cancel = asyncio.all_tasks(loop)
-
-            for task in to_cancel:
-                task.cancel()
-
-            if to_cancel:
-                loop.run_until_complete(
-                    asyncio.gather(*to_cancel, return_exceptions=True)
-                )
-
-                for task in to_cancel:
-                    if not task.cancelled() and task.exception() is not None:
-                        loop.call_exception_handler({
-                            "message": "unhandled exception during SyncAwaitableRunner shutdown",
-                            "exception": task.exception(),
-                            "task": task,
-                        })
-
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.run_until_complete(loop.shutdown_default_executor())
-        finally:
-            loop.close()
-
-
+    
     @property
     def started(self) -> bool:
-        """Whether the background loop/thread has been created at least once."""
+        """Whether start() has ever spawned the thread. Never goes back to False."""
         return self.__thread is not None
 
     @property
     def running(self) -> bool:
-        """Whether the background thread is actually alive right now."""
-        return self.__thread is not None and self.__thread.is_alive()
+        """Whether the background loop is up and able to accept work right now.
+
+        Stricter than `started and thread.is_alive()`: the thread is alive
+        throughout startup too (before _worker publishes `__stopping`), and
+        again briefly during shutdown, after `stopping` is set but before the
+        thread has actually finished draining and exited.
+        """
+
+        thread = self.__thread
+        stopping = self.__stopping
+
+        return (
+            thread is not None
+            and thread.is_alive()
+            and stopping is not None
+            and not stopping.is_set()
+        )
 
     @property
     def closed(self) -> bool:
+        """Whether close() has been called. Never goes back to False."""
         return self.__closed
 
-    def run(self, awaitable: Awaitable[_T]) -> _T:
-        self.__ensure_started()
+    def start(self) -> None:
+        """Start the background thread. Raises if already started or closed.
 
-        return run_awaitable_sync(awaitable, self.__loop)
+        run() calls this itself on first use and treats "already started" as
+        a benign race it lost, so most callers never need to call it directly;
+        it is public mainly so `lazy=True` construction can force startup (and
+        block until the loop is ready, or the failure is known) ahead of the
+        first run().
+        """
+
+        async def _worker() -> None:
+            """The single task asyncio.run() drives for the thread's whole
+            lifetime: publish `__loop`/`__stopping`, park until close() flips
+            `stopping`, then drain every other task still on the loop before
+            returning -- only then does asyncio.run() tear the loop down, so
+            it stays running for the entire drain instead of being stopped
+            out from under work still in flight.
+            """
+
+            self.__stopping = stopping = asyncio.Event()
+            self.__loop = loop = asyncio.get_running_loop()
+
+            started.set()
+
+            await stopping.wait()
+
+            current_task = asyncio.current_task(loop)
+
+            assert current_task is not None
+
+            # Rebuilt as a list every iteration -- a generator expression here
+            # would be truthy even once it yields nothing (a generator object
+            # is always truthy regardless of what it produces), turning this
+            # into a busy-spin that never lets close() finish. Re-querying
+            # all_tasks() fresh each pass also means a task created *while* an
+            # earlier gather() is running is still caught by the next one,
+            # without needing a separately maintained tracking set.
+            while tasks := [t for t in asyncio.all_tasks(loop=loop) if t is not current_task]:
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+        def _bootstrap() -> None:
+            loop_factory = self.__loop_factory
+            del self.__loop_factory
+            coro = _worker()
+
+            try:
+                if sys.version_info < (3, 12):
+                    asyncio.run(coro)
+                else:
+                    asyncio.run(coro, loop_factory=loop_factory)
+            finally:
+                self.__loop = None
+                self.__stopping = None
+
+                # Covers startup failures that happen before _worker ever
+                # runs (e.g. a loop_factory that raises): without this,
+                # started.wait() below would block forever, since nothing
+                # else would ever set it.
+                if not started.is_set():
+                    started.set()
+
+        with self.__lock:
+            if self.started:
+                raise RuntimeError(f"{self.__class__.__name__} is already started")
+            if self.__closed:
+                raise RuntimeError(f"{self.__class__.__name__} is closed")
+
+            started = threading.Event()
+            thread = threading.Thread(
+                target=safe_call, 
+                args=(_bootstrap,),
+                kwargs={"log_exc": True},
+                name=self.__name,
+                daemon=True,
+            ) 
+
+            del self.__name
+
+            thread.start()
+            started.wait()
+
+            self.__thread = thread
+
+    def run(self, awaitable: Awaitable[_T]) -> _T:
+        """Run `awaitable` on the background loop and block until it completes.
+
+        Starts the loop on first use if it is not already started. Lock-free
+        by design -- see the class docstring for why that is safe.
+        """
+
+        if not self.started:
+            try:
+                self.start()
+            except RuntimeError:
+                # Lost a race to start against another caller -- fine, unless
+                # the reason is that the runner is closed, which is fatal.
+                if self.closed:
+                    raise
+
+        loop = self.__loop
+
+        if not self.running or loop is None:
+            raise RuntimeError(f"{self.__class__.__name__} is not running")
+
+        try:
+            fut = asyncio.run_coroutine_threadsafe(
+                awaitable if asyncio.iscoroutine(awaitable)
+                else run_awaitable_in_coro(awaitable),
+                loop
+            )
+        except AttributeError: #closed
+            raise RuntimeError(
+                f"{self.__class__.__name__}'s event loop disappeared while scheduling"
+            ) from None
+
+        if not loop.is_running():
+            raise RuntimeError(
+                f"{self.__class__.__name__}'s event loop is no longer running"
+            )
+
+        return fut.result()
 
     __call__ = run
 
     def close(self) -> None:
-        with self.__start_lock:
+        """Stop the background loop and wait for it: signal `stopping`, let
+        every other task on the loop drain, then wait for the thread to end.
+
+        Safe to call concurrently and repeatedly: the first caller flips
+        `__closed` under `__lock`; the rest return immediately. `loop`/
+        `stopping` being None means the thread already finished on its own
+        (or never got far enough to publish them) -- nothing left to signal.
+        """
+
+        with self.__lock:
             if self.__closed:
                 return
 
             self.__closed = True
 
-            if self.__thread is None:
-                # never started (lazy=True and .run()/.loop were never used) --
-                # nothing to clean up
-                return
+        loop = self.__loop
+        stopping = self.__stopping
 
-            self.__loop.call_soon_threadsafe(self.__loop.stop)
-            self.__thread.join()
+        if not self.started or loop is None or stopping is None:
+            return
+
+        # Hand the signal to the worker's own loop rather than setting the
+        # asyncio.Event directly -- Event is not thread-safe.
+        loop.call_soon_threadsafe(stopping.set)
+
+        self.__thread.join()
 
     def __enter__(self) -> Self:
         return self
