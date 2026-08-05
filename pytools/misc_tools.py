@@ -190,8 +190,7 @@ def walk_subclasses(cls: Type, include_base: bool = False) -> Iterator[Type]:
         yield cls
 
     for sub in cls.__subclasses__():
-        yield sub
-        yield from walk_subclasses(sub, include_base=False)
+        yield from walk_subclasses(sub, include_base=True)
 
 
 __all__ = (
