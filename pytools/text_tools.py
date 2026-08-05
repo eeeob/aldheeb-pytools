@@ -18,6 +18,11 @@ from .iter_tools import to_list, flat_cont
 import re
 
 
+_SNAKE1_PATTERN = re.compile(r"(.)([A-Z][a-z]+)")
+_SNAKE2_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
+
+
+
 def to_str(value: _T) -> Union[str, _T]:
     return (
         value 
@@ -294,6 +299,19 @@ def op_or_cl(value: Any) -> Literal["مفتوح ✅", "مغلق ❌"]:
     return "مفتوح ✅" if value else "مغلق ❌"
 
 
+def to_snake_case(text: str) -> str:
+    return _SNAKE2_PATTERN.sub(
+        r"\1_\2", _SNAKE1_PATTERN.sub(r"\1_\2", text)
+    ).lower()
+
+
+def to_pascal_case(text: str) -> str:
+    return "".join(
+        i.title() 
+        for i in to_snake_case(text).split("_")
+        if i
+    )
+
 
 __all__ = (
     "clean_spaces",
@@ -306,5 +324,7 @@ __all__ = (
     "format_exc_tree", 
     "smart_split", 
     "chunk_text", 
+    "to_snake_case", 
+    "to_pascal_case", 
     
 )
