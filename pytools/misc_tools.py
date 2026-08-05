@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, Tuple, overload
+from typing import Any, Callable, Optional, Tuple, Iterator, Type, overload
 from .typings import _CT
 
 
@@ -185,11 +185,19 @@ def patch_cls(
     return _apply
 
 
+def walk_subclasses(cls: Type) -> Iterator[Type]:
+    for sub in cls.__subclasses__():
+        yield sub
+        yield from walk_subclasses(sub)
+
+
 __all__ = (
     "unwrap_cls", 
     "generate_secret", 
     "unwrap", 
     "patch_into", 
     "patch_cls", 
+    "walk_subclasses", 
+    
     
 )
