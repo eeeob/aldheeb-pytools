@@ -1,7 +1,7 @@
-from typing import Union, List, Callable, Optional, Awaitable, overload
+from typing import Union, List, Callable, Optional, Awaitable, overload, Any, Type, Tuple, TypeAlias
 from concurrent.futures import ThreadPoolExecutor
 
-from .typings import NestedContainer, MaybeAwaitable, _True, _False, _P, _T
+from .typings import NestedContainer, MaybeAwaitable, MaybeCoroutineCallable, _True, _False, _P, _T, _ExcT
 from .validate_tools import is_exception, iscoroutinefunction_wrapped
 from .iter_tools import iter_flat_cont
 
@@ -17,6 +17,10 @@ import traceback
 
 log = logging.getLogger(__file__)
 
+_ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
+_ExcLogger: TypeAlias = Union[bool, MaybeCoroutineCallable[[BaseException], Any]]
+
+_HARD_PROPAGATE = (SystemExit, KeyboardInterrupt)
 
 def _log_exc(
     header: Optional[str],
@@ -198,17 +202,15 @@ async def safe_await(
         try:
             result = await awaitable
         except Exception as e:
-            if log_exc:
-                _log_exc(
-                    "error in safe_await",
-                    caller_stack,
-                    e,
-                    index=i if is_multi else None,
-                )
-
             result = e
 
         if is_exception(result):
+            if log_exc:
+                _log_exc(
+                    "error in safe_await",
+                    caller_stack, e, 
+                    index=i if is_multi else None,
+                )
             if not return_exc:
                 raise result
 
@@ -216,6 +218,133 @@ async def safe_await(
 
     return results[0] if len(results) == 1 else results
 
+
+
+@overload
+async def asafe_call(
+    awaitable: Awaitable[_T],
+    *,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
+) -> Optional[_T]: ...
+@overload
+async def asafe_call(
+    awaitable: Awaitable[_T],
+    *,
+    return_exc: _False,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
+) -> Optional[_T]: ...
+@overload
+async def asafe_call(
+    awaitable: Awaitable[_T],
+    *,
+    return_exc: _True,
+    include_exc: Type[_ExcT],
+    exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
+) -> Union[_T, _ExcT]: ...
+@overload
+async def asafe_call(
+    awaitable: Awaitable[_T],
+    *,
+    return_exc: _True,
+    include_exc: Tuple[Type[_ExcT], ...],
+    exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
+) -> Union[_T, _ExcT]: ...
+@overload
+async def asafe_call(
+    awaitable: Awaitable[_T],
+    *,
+    return_exc: _True,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
+) -> Union[_T, BaseException]: ...
+@overload
+async def asafe_call(
+    awaitable: Awaitable[_T],
+    *,
+    raise_exc: _True,
+    include_exc: _ExcFilter = None,
+    exclude_exc: _ExcFilter = None,
+    log_exc: _ExcLogger = False,
+) -> _T: ...
+async def asafe_call(
+    awaitable,
+    *,
+    return_exc = False,
+    raise_exc = False,
+    include_exc = None,
+    exclude_exc = None,
+    log_exc = False,
+    ):
+    """await `awaitable`, swallowing whatever it raises.
+
+    The async counterpart of callable_tools.safe_call(), for a single
+    already-created awaitable rather than a callable to invoke: same
+    include_exc/exclude_exc filtering, same SystemExit/KeyboardInterrupt
+    hard-propagation, same bool-or-callable log_exc. Two differences:
+
+    `log_exc`'s callable form may itself be sync or async -- if calling it
+    returns an awaitable, that awaitable is awaited too before continuing.
+    An exception raised either by the call itself or by awaiting its result
+    is not caught; it propagates out of asafe_call, chained via `from`
+    onto the original error.
+
+    `raise_exc=True` has no sync equivalent: after `log_exc` runs (if it
+    fires), the exception is always re-raised via a bare `raise` (preserving
+    its original traceback) instead of being swallowed or returned --
+    useful when you want the logging/handling side effect without changing
+    whether the caller sees the error. Because of that, `return_exc` and
+    `raise_exc` are mutually exclusive: return_exc says "hand the exception
+    back as a value", raise_exc says "never hand it back at all", and
+    combining them raises TypeError immediately, before `awaitable` is even
+    awaited.
+    """
+
+    if return_exc and raise_exc:
+        raise TypeError(
+            "asafe_call: return_exc and raise_exc cannot both be True -- "
+            "raise_exc means the exception is never returned, only re-raised"
+        )
+
+    if exclude_exc is not None:
+        for exc_type in exclude_exc if isinstance(exclude_exc, tuple) else (exclude_exc,):
+            if issubclass(exc_type, _HARD_PROPAGATE):
+                raise TypeError(
+                    f"exclude_exc: {exc_type.__name__} always propagates already -- "
+                    "no need to list it"
+                )
+
+    try:
+        return await awaitable
+    except _HARD_PROPAGATE:
+        raise
+    except BaseException as e:
+        if exclude_exc is not None and isinstance(e, exclude_exc):
+            raise
+
+        if include_exc is not None and not isinstance(e, include_exc):
+            raise
+
+        if log_exc:
+            if callable(log_exc):
+                try:
+                    await maybe_awaitable(log_exc, e, log_exc=False)
+                except BaseException as le:
+                    raise le from e
+            else:
+                log.error("error in asafe_call(%r)" % (awaitable,), exc_info=e)
+
+        if raise_exc:
+            raise
+
+        if return_exc:
+            return e
 
 
 @overload
@@ -293,11 +422,12 @@ async def run_awaitable_in_coro(awaitable: Awaitable[_T]) -> _T:
     
     
 __all__ = [
-    "to_thread", 
-    "gather_helper", 
-    "safe_await", 
-    "safe_wait_task", 
-    "maybe_awaitable", 
-    "run_awaitable_in_coro", 
-    "gather_abort", 
+    "to_thread",
+    "gather_helper",
+    "safe_await",
+    "asafe_call",
+    "safe_wait_task",
+    "maybe_awaitable",
+    "run_awaitable_in_coro",
+    "gather_abort",
 ]
