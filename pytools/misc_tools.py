@@ -185,10 +185,13 @@ def patch_cls(
     return _apply
 
 
-def walk_subclasses(cls: Type) -> Iterator[Type]:
+def walk_subclasses(cls: Type, include_base: bool = False) -> Iterator[Type]:
+    if include_base:
+        yield cls
+
     for sub in cls.__subclasses__():
         yield sub
-        yield from walk_subclasses(sub)
+        yield from walk_subclasses(sub, include_base=False)
 
 
 __all__ = (
@@ -198,6 +201,6 @@ __all__ = (
     "patch_into", 
     "patch_cls", 
     "walk_subclasses", 
-    
+
     
 )
