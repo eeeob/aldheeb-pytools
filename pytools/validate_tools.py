@@ -1,9 +1,11 @@
 
 from typing import (
     Any, Union, Optional,
-    Mapping, Type,
-    overload, Tuple, get_args,
+    Mapping, Type, TypeAlias,
+    overload, Tuple, get_args, get_origin,
 )
+
+from types import UnionType
 
 import sys
 
@@ -65,6 +67,50 @@ EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 # classes, which isinstance()/issubclass() have always accepted on every version.
 _CONTAINER_TYPES = get_args(Container)
 _NOT_CONTAINER_TYPES = get_args(NotContainer)
+
+_ClassInfo: TypeAlias = Union[type, UnionType, Tuple["_ClassInfo", ...]]
+
+def _flatten_class_info(class_info: _ClassInfo) -> Tuple[type, ...]:
+    """Normalize `class_info` into the plain tuple-of-types form isinstance()/
+    issubclass() have always accepted on every supported version.
+
+    `X | Y` (types.UnionType) is already accepted directly by isinstance()/
+    issubclass() on every version this package targets (3.10+), so it isn't
+    the problem -- typing.Union[X, Y] is (see the comment above), and that's
+    what get_origin()/get_args() unwrap here. Tuples are flattened
+    recursively so a tuple mixing plain types, `X | Y`, and `Union[...]`
+    members (nested arbitrarily) all resolve the same way.
+    """
+
+    if isinstance(class_info, tuple):
+        flattened = set()
+
+        for c in class_info:
+            flattened.update(_flatten_class_info(c))
+
+        return tuple(flattened)
+
+    origin = get_origin(class_info)
+
+    if origin is Union or origin is UnionType:
+        return _flatten_class_info(get_args(class_info))
+
+    return (class_info,)
+
+def is_instance(obj: Any, class_info: _ClassInfo) -> bool:
+    """Like isinstance(), but `class_info` may also be (or contain, nested
+    inside a tuple) a typing.Union[...] -- which bare isinstance() rejects
+    with TypeError on Python < 3.14. `X | Y` already works with isinstance()
+    on every version this package supports, so it needs no special handling,
+    but is accepted here too for a uniform call site.
+    """
+
+    return isinstance(obj, _flatten_class_info(class_info))
+
+def is_subclass(cls: type, class_info: _ClassInfo) -> bool:
+    """The issubclass() counterpart of is_instance() -- see its docstring."""
+
+    return issubclass(cls, _flatten_class_info(class_info))
 
 
 def is_exception(obj: Any) -> TypeIs[BaseException]:
@@ -296,7 +342,7 @@ def checker_lookup(origin_type: Any, *_):
     of ours, let typeguard's own lookups handle it".
     """
 
-    def validate_enum(value, origin_type: Type[Enum], *_):
+    def validate_enum(value, origin_type: EnumType, *_):
         try:
             origin_type(value)
         except (ValueError, TypeError) as exc:
@@ -366,7 +412,9 @@ __all__ = (
     "is_accessible_received_email", 
     "is_sub_mapping", 
     "is_sub_container", 
-    "validate_type", 
-    "iscoroutinefunction_wrapped", 
-    
+    "validate_type",
+    "iscoroutinefunction_wrapped",
+    "is_instance",
+    "is_subclass",
+
 )

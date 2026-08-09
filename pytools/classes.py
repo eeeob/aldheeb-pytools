@@ -813,6 +813,7 @@ class AioThreadWorker:
 
     async def __aenter__(self) -> Self:
         self.run()
+        self.wait_for_running()
         return self
 
     async def __aexit__(self, *_) -> None:
@@ -876,8 +877,6 @@ class DefaultWeakValueDict(KeyDefaultWeakValueDict[_KT, _VT]):
             return default_factory()
 
         super().__init__(wrapper)
-
-
 
 
 class SyncAwaitableRunner:
