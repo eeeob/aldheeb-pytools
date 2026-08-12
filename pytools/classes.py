@@ -1,7 +1,7 @@
 from typing import (
     Any, Awaitable, Callable, TYPE_CHECKING,
     Dict, Optional, Generic, Set,
-    overload, Type, TypeVar
+    overload, Type, Hashable, ClassVar, TypeVar
 )
 
 try:
@@ -9,6 +9,12 @@ try:
 except ImportError:  # Python < 3.11
     from typing_extensions import Self
 
+import sys
+
+if sys.version_info < (3, 13):
+    from typing_extensions import TypeVar
+
+from abc import ABC
 from types import MethodType
 from functools import partial, cached_property
 from datetime import datetime, timezone, timedelta
@@ -32,13 +38,14 @@ import wrapt
 import logging
 import threading
 import asyncio
-import sys
 import time
 import warnings
 import inspect
 
 log = logging.getLogger(__name__)
+
 _C = TypeVar("_C")
+
 
 class classproperty(Generic[_C, _T]):
     """Like @property, but the getter receives the class instead of an
@@ -56,6 +63,8 @@ class classproperty(Generic[_C, _T]):
     `_cache`, keyed by the class itself -- so a subclass gets its own cached
     computation rather than inheriting the base class's cached value.
     """
+
+    __slots__ = "fget", "call", "doc"
 
     @overload
     def __new__(
@@ -90,31 +99,26 @@ class classproperty(Generic[_C, _T]):
     ) -> None:
         
         self.fget = fget
-        self.cached = cached
-        self._cache: Dict[Type[_C], _T] = {}
+        self.call = KeyDefaultWeakKeyDict(self.fget) if cached else fget
 
         if doc is None:
             doc = fget.__doc__
 
-        self.__doc__ = doc
+        self.doc = doc
+
+    @property
+    def __doc__(self) -> str:
+        return self.doc
 
     @overload
-    def __get__(self, _: Any, owner: None) -> "classproperty[_C, _T]": ...
+    def __get__(self, _: Any, owner: None) -> Self: ...
     @overload
     def __get__(self, _: Any, owner: Type[_C]) -> _T: ...
     def __get__(self, _, owner):
         if owner is None:
             return self
 
-        if not self.cached:
-            return self.fget(owner)
-
-        try:
-            return self._cache[owner]
-        except KeyError:
-            value = self.fget(owner)
-            self._cache[owner] = value
-            return value
+        return self.call(owner)
 
 
 
@@ -867,7 +871,6 @@ class KeyDefaultWeakValueDict(weakref.WeakValueDictionary[_KT, _VT]):
     
     __call__ = __getitem__
 
-
 class DefaultWeakValueDict(KeyDefaultWeakValueDict[_KT, _VT]):
     def __init__(self, default_factory: Callable[[], _VT]) -> None:
         if not callable(default_factory):
@@ -877,6 +880,77 @@ class DefaultWeakValueDict(KeyDefaultWeakValueDict[_KT, _VT]):
             return default_factory()
 
         super().__init__(wrapper)
+
+
+class KeyDefaultWeakKeyDict(weakref.WeakKeyDictionary[_KT, _VT]):
+    def __init__(self, default_factory: Callable[[_KT], _VT]) -> None:
+        if not callable(default_factory):
+            raise TypeError("default_factory must be callable")
+
+        super().__init__()
+        self.default_factory = default_factory
+
+    def __getitem__(self, key: _KT) -> _VT:
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            value = self.default_factory(key)
+            self[key] = value
+            return value
+
+    __call__ = __getitem__
+
+class DefaultWeakKeyDict(KeyDefaultWeakKeyDict[_KT, _VT]):
+    def __init__(self, default_factory: Callable[[], _VT]) -> None:
+        if not callable(default_factory):
+            raise TypeError("default_factory must be callable")
+
+        def wrapper(_: _KT) -> _VT:
+            return default_factory()
+
+        super().__init__(wrapper)
+
+
+_WeakRegistryKT = TypeVar("_WeakRegistryKT", bound=Hashable, default=int)
+
+class WeakRegistry(Generic[_WeakRegistryKT], ABC):
+    """Base class for anything that should register itself, weakly, under a
+    per-subclass lookup table: `SubClass.instances[key]` finds a live
+    instance without keeping it alive on its own -- once nothing else
+    references it, it disappears from the table too.
+
+    Pass `key` to __init__ to control where an instance lands; omitting it
+    falls back to id(self). `instances` is a classproperty cached per owning
+    class (see classproperty's own `cached=True` docs), so every subclass
+    gets its own independent WeakValueDictionary instead of sharing one
+    across the whole hierarchy.
+
+    Subclassing ABC here is a documentation-only signal, not an enforced
+    one -- there are no abstractmethods, so nothing actually blocks
+    instantiating WeakRegistry directly.
+
+    Two things worth knowing about the id() fallback before relying on it:
+    - It only identifies an instance for as long as something *else* keeps a
+      strong reference to it. Nothing here does -- that's the point of a
+      weak registry -- so an instance constructed with no key and no other
+      reference held anywhere can be collected (and its entry removed)
+      essentially immediately.
+    - `key=None` is indistinguishable from "no key given" -- there is no way
+      to explicitly register an instance under the key `None` itself, since
+      that is always read as "fall back to id(self)" instead.
+    """
+
+    __slots__ = "__weakref__", 
+
+    if TYPE_CHECKING:
+        instances: ClassVar[weakref.WeakValueDictionary[_WeakRegistryKT, Self]]
+    else:
+        @classproperty(cached=True)
+        def instances(cls):
+            return weakref.WeakValueDictionary()
+
+    def __init__(self, key: Optional[_WeakRegistryKT] = None) -> None:
+        self.__class__.instances[id(self) if key is None else key] = self
 
 
 class SyncAwaitableRunner:
@@ -1164,4 +1238,7 @@ __all__ = (
     "SyncAwaitableRunner", 
     "RestrictedProxy", 
     "WeakRestrictedProxy", 
+    "KeyDefaultWeakKeyDict",
+    "DefaultWeakKeyDict",
+    "WeakRegistry",
 )
