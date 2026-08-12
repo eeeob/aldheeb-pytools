@@ -208,7 +208,7 @@ async def safe_await(
             if log_exc:
                 _log_exc(
                     "error in safe_await",
-                    caller_stack, e, 
+                    caller_stack, result, 
                     index=i if is_multi else None,
                 )
             if not return_exc:
