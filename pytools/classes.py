@@ -938,19 +938,54 @@ class WeakRegistry(Generic[_WeakRegistryKT], ABC):
     - `key=None` is indistinguishable from "no key given" -- there is no way
       to explicitly register an instance under the key `None` itself, since
       that is always read as "fall back to id(self)" instead.
+
+    Pass `allow_duplicate_keys=False` as a class keyword argument right in
+    the class statement to make registering an already-live key raise
+    ValueError instead of silently overwriting it:
+
+    >>> class Widget(WeakRegistry[str], allow_duplicate_keys=False): ...
+
+    The default (True) matches plain dict-assignment semantics. Omitting it
+    on a subclass inherits whatever the nearest ancestor set (normal MRO
+    lookup, via __init_subclass__ only touching the attribute when the
+    keyword is actually given) rather than silently resetting back to True.
+    Checking `key in instances` only ever sees *live* entries -- a weak dict
+    removes a dead one on its own -- so a key freed up by garbage collection
+    is correctly available again even with duplicates disallowed.
     """
 
-    __slots__ = "__weakref__", 
+    __slots__ = "__weakref__",
+
+
+    def __init_subclass__(cls, allow_duplicate_keys: Optional[bool] = None, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+
+        # None means "not given" here -- setting cls.allow_duplicate_keys
+        # unconditionally would shadow whatever an ancestor already set on
+        # every subclass, even ones that never asked to change it.
+        if allow_duplicate_keys is not None:
+            cls.__allow_duplicate_keys__ = allow_duplicate_keys
+
+    __allow_duplicate_keys__: ClassVar[bool] = True
 
     if TYPE_CHECKING:
-        instances: ClassVar[weakref.WeakValueDictionary[_WeakRegistryKT, Self]]
+        __instances__: ClassVar[weakref.WeakValueDictionary[_WeakRegistryKT, Self]]
     else:
         @classproperty(cached=True)
-        def instances(cls):
+        def __instances__(cls):
             return weakref.WeakValueDictionary()
 
     def __init__(self, key: Optional[_WeakRegistryKT] = None) -> None:
-        self.__class__.instances[id(self) if key is None else key] = self
+        key = id(self) if key is None else key
+        instances = self.__class__.__instances__
+
+        if not self.__allow_duplicate_keys__ and instances.get(key, self) is not self:
+            raise ValueError(
+                f"{self.__class__.__name__}: key {key!r} is already registered "
+                "and this class does not allow duplicate keys"
+            )
+
+        instances[key] = self
 
 
 class SyncAwaitableRunner:
