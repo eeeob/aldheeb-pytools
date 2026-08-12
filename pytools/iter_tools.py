@@ -1,12 +1,14 @@
 from typing import (
-    List, Set, Union, 
-    FrozenSet, Tuple, 
-    Generator, Any, overload
+    List, Set, Union,
+    FrozenSet, Tuple,
+    Generator, Any, overload, TypeVar
 )
 
 
 from .typings import Container, NestedContainer, _T
 from .validate_tools import is_container
+
+_D = TypeVar("_D")
 
 
 
@@ -71,12 +73,32 @@ def flat_cont(*containers):
     return list(iter_flat_cont(*containers))
 
 
+def pad_list(values: List[_T], length: int, exact: bool = False, default: _D = None) -> List[Union[_T, _D]]:
+    """Pad `values` in place to `length`, filling missing positions with
+    `default` -- mutates the list itself rather than building a new one, and
+    returns it back for convenience.
+
+    `values` shorter than `length` is always padded on the right with
+    `default`. Longer is left alone unless `exact=True`, which truncates it
+    down to `length` too -- so `length` becomes a hard cap instead of just a
+    floor.
+    """
+
+    if len(values) < length:
+        values.extend([default] * (length - len(values)))
+    elif exact and len(values) > length:
+        del values[length:]
+
+    return values
+
+
 __all__ = (
-    "to_list", 
-    "to_tuple", 
-    "to_set", 
-    "to_frozenset", 
-    "iter_flat_cont", 
-    "flat_cont", 
-    
+    "to_list",
+    "to_tuple",
+    "to_set",
+    "to_frozenset",
+    "iter_flat_cont",
+    "flat_cont",
+    "pad_list",
+
 )

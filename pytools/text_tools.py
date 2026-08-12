@@ -188,65 +188,94 @@ def numbering(
     return values
 
 
+
+def _smart_split_helper(
+    text, 
+    filter, 
+    strip, 
+    remove_spaces, 
+    resolver
+    ):
+
+    if filter is not None and not filter(text):
+        return _NOT_SET
+
+    if remove_spaces:
+        text = clean_spaces(text)
+    elif strip:
+        text = text.strip()
+
+    if resolver is not None:
+        text = resolver(text)
+
+    return text
+
+
 @overload
 def smart_split(
-    text: NestedContainer[str], 
-    indexing: int, 
-    part_resolver: Callable[[str], _T], 
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
+    text: NestedContainer[str],
+    indexing: int,
+    part_resolver: Callable[[str], _T],
+    strip: bool = ...,
+    remove_spaces: bool = ...,
+    max_split: int = ...,
+    part_filter: Optional[Callable[[str], bool]] = ...,
     *,
-    separator: Union[str, Callable[[], str]], 
+    separator: Union[str, Callable[[], str]],
 ) -> _T: ...
 @overload
 def smart_split(
     text: NestedContainer[str],
-    indexing: int, 
+    indexing: int,
     *,
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ...,  
+    strip: bool = ...,
+    remove_spaces: bool = ...,
+    max_split: int = ...,
+    part_filter: Optional[Callable[[str], bool]] = ...,
     separator: Union[str, Callable[[], str]],
 ) -> str: ...
 @overload
 def smart_split(
-    text: NestedContainer[str], 
-    indexing: slice, 
-    part_resolver: Callable[[str], _T], 
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
+    text: NestedContainer[str],
+    indexing: slice,
+    part_resolver: Callable[[str], _T],
+    strip: bool = ...,
+    remove_spaces: bool = ...,
+    max_split: int = ...,
+    part_filter: Optional[Callable[[str], bool]] = ...,
     *,
     separator: Union[str, Callable[[], str]],
 ) -> List[_T]: ...
 @overload
 def smart_split(
-    text: NestedContainer[str], 
-    indexing: slice, 
-    *, 
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
+    text: NestedContainer[str],
+    indexing: slice,
+    *,
+    strip: bool = ...,
+    remove_spaces: bool = ...,
+    max_split: int = ...,
+    part_filter: Optional[Callable[[str], bool]] = ...,
     separator: Union[str, Callable[[], str]],
 ) -> List[str]: ...
 @overload
 def smart_split(
-    text: NestedContainer[str], 
-    *, 
-    part_resolver: Callable[[str], _T], 
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
+    text: NestedContainer[str],
+    *,
+    part_resolver: Callable[[str], _T],
+    strip: bool = ...,
+    remove_spaces: bool = ...,
+    max_split: int = ...,
+    part_filter: Optional[Callable[[str], bool]] = ...,
     separator: Union[str, Callable[[], str]],
 ) -> List[_T]: ...
 @overload
 def smart_split(
-    text: NestedContainer[str], 
-    *, 
-    strip: bool = ..., 
-    remove_spaces: bool = ..., 
-    max_split: int = ..., 
+    text: NestedContainer[str],
+    *,
+    strip: bool = ...,
+    remove_spaces: bool = ...,
+    max_split: int = ...,
+    part_filter: Optional[Callable[[str], bool]] = ...,
     separator: Union[str, Callable[[], str]],
 ) -> List[str]: ...
 def smart_split(
@@ -256,10 +285,12 @@ def smart_split(
     strip = False,
     remove_spaces = False,
     max_split = -1,
+    part_filter = None,
     *,
     separator,
     ):
-    """Split `text` on `separator`, then optionally index/strip/convert the parts.
+    """Split `text` on `separator`, then optionally index/strip/filter/convert
+    the parts.
 
     `text` may already be a container of strings instead of a single string
     -- in that case `separator`/`max_split` are skipped and the container is
@@ -269,6 +300,19 @@ def smart_split(
     separators that need to be computed (e.g. a compiled regex's pattern).
     `indexing` (an int or slice) then narrows down to specific part(s); an int
     index returns that single part unwrapped rather than a one-item list.
+
+    `part_filter`, if given, runs on the raw part -- *before* strip/
+    remove_spaces, not after -- and always before `part_resolver` (so it
+    always sees a plain string, regardless of what part_resolver converts
+    to); parts it rejects are dropped entirely rather than cleaned or
+    resolved. That ordering means a whitespace-only part (e.g. `" "`) is
+    *not* rejected by `part_filter=bool` on its own -- it's only blank once
+    `strip`/`remove_spaces` has run on it, which happens after the filter
+    already let it through. Filter on the cleaned form explicitly (e.g.
+    `part_filter=lambda t: bool(t.strip())`) if that's what you want. With
+    `indexing` as an int, filtering out the one selected part leaves nothing
+    to unwrap and raises IndexError, same as indexing past the end of
+    `texts` already does.
     """
 
     if callable(separator):
@@ -278,15 +322,11 @@ def smart_split(
 
     if indexing is not None:
         texts = to_list(texts[indexing])
-    
-    if strip or remove_spaces:
-        texts = [
-            clean_spaces(t) if remove_spaces else t.strip()
-            for t in texts
-            ]
-    
-    if part_resolver is not None:
-        texts = [part_resolver(t) for t in texts]
+
+    texts = [
+        txt for t in texts
+        if (txt := _smart_split_helper(t, part_filter, strip, remove_spaces, part_resolver)) is not _NOT_SET
+    ]
 
     return texts[0] if isinstance(indexing, int) else texts
 
