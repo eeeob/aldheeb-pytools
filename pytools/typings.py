@@ -78,7 +78,7 @@ JsonValue: TypeAlias = Union[
 
 NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType, Awaitable]
 PhoneNumber: TypeAlias = Annotated[str, "Phone number in international format, e.g. +967xxxxxxxxx"]
-RegionCode: TypeAlias = Annotated[str, "يجب ان يكون lower وايضا يجب التاكد من صحته"]
+RegionCode: TypeAlias = Annotated[str, "ISO region code, verify that it is valid"]
 Number: TypeAlias = Union[int, float]
 
 
