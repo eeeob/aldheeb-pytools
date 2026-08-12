@@ -1,7 +1,7 @@
 from typing import (
     Union, Mapping, 
     Any, Literal, Optional, 
-    Callable, List, overload
+    Callable, List, overload, cast
 )
 
 from .typings import (
@@ -22,6 +22,8 @@ _SNAKE1_PATTERN = re.compile(r"(.)([A-Z][a-z]+)")
 _SNAKE2_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
 
 
+_NOT_SET = object()
+
 
 def to_str(value: _T) -> Union[str, _T]:
     return (
@@ -40,7 +42,8 @@ def split_part(
     part: int = 0, 
     strip: bool = True, 
     remove_spaces: bool = False, 
-    ) -> str:
+    default: _T = cast(str, _NOT_SET)
+    ) -> Union[str, _T]:
 
     try:
         value = value.split(sep)[part]
@@ -53,7 +56,7 @@ def split_part(
 
         return value
     except IndexError:
-        return value
+        return value if default is _NOT_SET else default
 
 def chunk_text(text: str, max_length: int = TgMessageLength.TEXT) -> List[str]:
     """Split `text` into pieces of at most `max_length` characters, preferring
