@@ -263,14 +263,74 @@ def set_func_attrs(func = None, **kw):
     return updater(func)
 
 
+def ignore_arguments(func: Callable[[], _T]) -> Callable[..., _T]:
+    """
+    Return a wrapper that ignores all positional and keyword arguments before
+    calling *func*.
+
+    Example:
+        callback = ignore_arguments(cleanup)
+        callback(1, 2, x=3)  # Calls cleanup()
+    """
+
+    @functools.wraps(func)
+    def wrapper(*_: Any, **__: Any) -> _T:
+        return func()
+
+    return wrapper
+
+
+@overload
+def return_constant(
+    func: Callable[_P, Any], 
+    *, 
+    value: _T = None, 
+) -> Callable[_P, _T]: ...
+@overload
+def return_constant(
+    func: None, 
+    *, 
+    value: _T = None, 
+) -> Callable[[Callable[_P, Any]], Callable[_P, _T]]: ...
+def return_constant(
+    func: Optional[Callable[_P, Any]] = None, 
+    *, 
+    value: _T = None, 
+):
+    """
+    Wrap a callable so it always returns ``value`` after execution.
+
+    Can be used either directly::
+
+        wrapped = return_constant(func, value=True)
+
+    or as a decorator::
+
+        @return_constant(value=True)
+        def func():
+            ...
+    """
+
+    if func is None:
+        return functools.partial(return_constant, value=value)
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> _T:
+        func(*args, **kwargs)
+        return value
+
+    return wrapper
+
 
 
 __all__ = (
-    "safe_call",
-    "raise_if",
-    "await_sync",
-    "set_func_attrs",
-    "to_coroutine",
-    "run_awaitable_sync",
+    "safe_call", 
+    "raise_if", 
+    "await_sync", 
+    "set_func_attrs", 
+    "to_coroutine", 
+    "run_awaitable_sync", 
+    "ignore_arguments", 
+    "return_constant", 
 
 )
