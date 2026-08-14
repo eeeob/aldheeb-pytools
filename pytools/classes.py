@@ -64,7 +64,7 @@ class classproperty(Generic[_C, _T]):
     computation rather than inheriting the base class's cached value.
     """
 
-    __slots__ = "fget", "call", "doc"
+    __slots__ = "call", "doc"
 
     @overload
     def __new__(
@@ -98,13 +98,8 @@ class classproperty(Generic[_C, _T]):
         cached: bool = False 
     ) -> None:
         
-        self.fget = fget
-        self.call = KeyDefaultWeakKeyDict(self.fget) if cached else fget
-
-        if doc is None:
-            doc = fget.__doc__
-
-        self.doc = doc
+        self.call = KeyDefaultWeakKeyDict(fget) if cached else fget
+        self.doc = fget.__doc__ if doc is None else doc
 
     @property
     def __doc__(self) -> str:
