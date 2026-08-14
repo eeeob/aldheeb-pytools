@@ -263,6 +263,29 @@ def set_func_attrs(func = None, **kw):
     return updater(func)
 
 
+@overload
+def call_all(*funcs: Callable[[], _T], lazy: _False = False) -> Tuple[_T, ...]: ...
+@overload
+def call_all(*funcs: Callable[[], _T], lazy: _True) -> Callable[[], Tuple[_T, ...]]: ...
+def call_all(*funcs: Callable[[], _T], lazy: bool = False):
+    """Call every zero-argument callable in `funcs`, in order, and return
+    their results as a tuple in that same order.
+
+    Each call happens synchronously, one after another -- a callable that
+    raises stops the rest from ever running, same as writing out
+    `(func1(), func2(), ...)` by hand.
+
+    `lazy=True` defers all of that -- `funcs` are only captured, not called
+    yet -- and returns a zero-argument callable that runs this same call_all
+    over them once it's eventually invoked.
+    """
+
+    if lazy:
+        return functools.partial(call_all, *funcs)
+
+    return tuple(func() for func in funcs)
+
+
 def ignore_arguments(func: Callable[[], _T]) -> Callable[..., _T]:
     """
     Return a wrapper that ignores all positional and keyword arguments before
@@ -330,7 +353,8 @@ __all__ = (
     "set_func_attrs", 
     "to_coroutine", 
     "run_awaitable_sync", 
-    "ignore_arguments", 
-    "return_constant", 
+    "ignore_arguments",
+    "return_constant",
+    "call_all",
 
 )
