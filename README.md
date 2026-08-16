@@ -23,8 +23,6 @@
 
 ## 📦 Installation
 
-Starting from `v0.2.0`, the library uses **optional dependencies** — install only what you need.
-
 ### Minimal install (no optional dependencies)
 
 ```bash
