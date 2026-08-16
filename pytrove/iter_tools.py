@@ -1,14 +1,12 @@
 from typing import (
     List, Set, Union,
     FrozenSet, Tuple,
-    Generator, Any, overload, TypeVar
+    Generator, Any, overload
 )
 
 
-from .typings import Container, NestedContainer, _T
+from .typings import Container, NestedContainer, _T, _VT
 from .validate_tools import is_container
-
-_D = TypeVar("_D")
 
 
 
@@ -73,7 +71,7 @@ def flat_cont(*containers):
     return list(iter_flat_cont(*containers))
 
 
-def pad_list(values: List[_T], length: int, exact: bool = False, default: _D = None) -> List[Union[_T, _D]]:
+def pad_list(values: List[_VT], length: int, exact: bool = False, default: _T = None) -> List[Union[_VT, _T]]:
     """Pad `values` in place to `length`, filling missing positions with
     `default` -- mutates the list itself rather than building a new one, and
     returns it back for convenience.

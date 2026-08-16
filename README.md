@@ -42,6 +42,8 @@ pip install pytrove
 | `tg` | `kurigram` | Telegram automation |
 | `imap` | `aioimaplib` | IMAP email fetching |
 | `bs4` | `beautifulsoup4` | HTML email parsing |
+| `typecheck` | `typeguard` | Runtime type validation (`validate_type`) |
+| `proxy` | `wrapt` | Restricted object proxies (`RestrictedProxy`, `WeakRestrictedProxy`, `AioThreadWorker.get_loop`) |
 | `full` | everything above | All features |
 
 ```bash

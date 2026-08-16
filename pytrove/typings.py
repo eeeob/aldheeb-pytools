@@ -2,7 +2,7 @@ from typing import (
     Collection, Generator, Union, Reversible,
     Sequence, AbstractSet, Mapping, TypeAlias, List,
     Any, Dict, Annotated, TYPE_CHECKING, Callable, Coroutine,
-    Awaitable, ParamSpec, TypeVar, Literal, TypedDict
+    Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Hashable
 )
 
 from enum import EnumMeta as EnumType, Enum  # EnumType is only an alias for EnumMeta added in 3.11
@@ -84,7 +84,7 @@ Number: TypeAlias = Union[int, float]
 
 _CT = TypeVar("_CT", bound=type)
 _FT = TypeVar("_FT", bound=Callable[..., Any])
-_KT = TypeVar("_KT")
+_KT = TypeVar("_KT", bound=Hashable)
 _VT = TypeVar("_VT")
 _ExcT = TypeVar("_ExcT", bound=BaseException)
 _EnumT = TypeVar("_EnumT", bound=Enum)

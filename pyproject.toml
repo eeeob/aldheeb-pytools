@@ -19,15 +19,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 
 dependencies = [
-    "typeguard>=4.3",
-    "wrapt>=1.16", 
     "typing_extensions>=4.0; python_version<'3.13'",
 ]
 
@@ -51,9 +49,11 @@ bs4 = ["beautifulsoup4>=4.14.3"]
 imap = ["aioimaplib>=2.0.1"]
 phone = ["phonenumbers>=9.0.21"]
 tg = ["kurigram>=2.1.35"]
+typecheck = ["typeguard>=4.3"]
+proxy = ["wrapt>=1.16"]
 
 full = [
-    "pytrove[imap,phone,country,bs4,mongo,tg,crypto]"
+    "pytrove[imap,phone,country,bs4,mongo,tg,crypto,typecheck,proxy]"
 ]
 
 [tool.hatch.build.targets.sdist]

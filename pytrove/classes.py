@@ -26,6 +26,13 @@ except ImportError:
 else:
     HAS_PYMONGO = True
 
+try:
+    import wrapt
+except ImportError:
+    HAS_WRAPT = False
+else:
+    HAS_WRAPT = True
+
 from ._optional import _unavailable_class
 
 from .typings import _KT, _VT, _T, _P, Number, MaybeContainer
@@ -34,7 +41,6 @@ from .callable_tools import run_awaitable_in_coro, safe_call
 from .iter_tools import to_frozenset
 
 import weakref
-import wrapt
 import logging
 import threading
 import asyncio
@@ -44,10 +50,8 @@ import inspect
 
 log = logging.getLogger(__name__)
 
-_C = TypeVar("_C")
 
-
-class classproperty(Generic[_C, _T]):
+class classproperty(Generic[_T, _VT]):
     """Like @property, but the getter receives the class instead of an
     instance, and works when accessed on the class itself (`Cls.attr`, not
     just `Cls().attr`).
@@ -69,11 +73,11 @@ class classproperty(Generic[_C, _T]):
     @overload
     def __new__(
         cls,
-        fget: Callable[[Type[_C]], _T],
+        fget: Callable[[Type[_T]], _VT],
         *,
         doc: Optional[str] = None,
         cached: bool = False
-    ) -> "classproperty[_C, _T]": ...
+    ) -> "classproperty[_T, _VT]": ...
     @overload
     def __new__(
         cls,
@@ -82,7 +86,7 @@ class classproperty(Generic[_C, _T]):
         doc: Optional[str] = None, 
         cached: bool = False 
     ) -> Callable[
-        [Callable[[Type[_C]], _T]], "classproperty[_C, _T]"
+        [Callable[[Type[_T]], _VT]], "classproperty[_T, _VT]"
         ]: ...
     def __new__(cls, fget = None, *, doc = None, cached = False): 
         if fget is None:
@@ -92,7 +96,7 @@ class classproperty(Generic[_C, _T]):
 
     def __init__(
         self, 
-        fget: Callable[[Type[_C]], _T], 
+        fget: Callable[[Type[_T]], _VT], 
         *, 
         doc: Optional[str] = None, 
         cached: bool = False 
@@ -108,12 +112,18 @@ class classproperty(Generic[_C, _T]):
     @overload
     def __get__(self, _: Any, owner: None) -> Self: ...
     @overload
-    def __get__(self, _: Any, owner: Type[_C]) -> _T: ...
+    def __get__(self, _: Any, owner: Type[_T]) -> _VT: ...
     def __get__(self, _, owner):
         if owner is None:
             return self
 
-        return self.call(owner)
+        value = self.call(owner)
+        
+        try:
+            return value
+        finally:
+            if value is self and isinstance(self.call, KeyDefaultWeakKeyDict):
+                self.call.pop(owner, None)
 
 
 
@@ -163,81 +173,85 @@ class KeyDefaultDict(Dict[_KT, _VT]):
     def __call__(self, key: _KT) -> _VT:
         return self[key]
 
-class RestrictedProxy(wrapt.ObjectProxy):
-    """A proxy that restricts access to named attributes on the wrapped object.
+if HAS_WRAPT:
+    class RestrictedProxy(wrapt.ObjectProxy):
+        """A proxy that restricts access to named attributes on the wrapped object.
 
-    The wrapped object is exposed through `wrapt.ObjectProxy`, but attribute
-    reads and writes are filtered by either a deny-list (`blocked`) or an
-    allow-list (`allowed`). Passing both at once raises `ValueError`.
+        The wrapped object is exposed through `wrapt.ObjectProxy`, but attribute
+        reads and writes are filtered by either a deny-list (`blocked`) or an
+        allow-list (`allowed`). Passing both at once raises `ValueError`.
 
-    The internal proxy state uses the `'_self_'` namespace reserved by
-    `wrapt`, so `_self_blocked` and `_self_allowed` are stored without being
-    intercepted by the restriction checks.
-    """
+        The internal proxy state uses the `'_self_'` namespace reserved by
+        `wrapt`, so `_self_blocked` and `_self_allowed` are stored without being
+        intercepted by the restriction checks.
+        """
 
-    def __init__(
-        self,
-        obj: Any,
-        blocked: Optional["MaybeContainer[str]"] = None,
-        allowed: Optional["MaybeContainer[str]"] = None,
-        ):
-
-        blocked = to_frozenset(blocked)
-        allowed = to_frozenset(allowed)
-
-        if blocked and allowed:
-            raise ValueError("blocked and allowed cannot both be provided")
-
-        super().__init__(obj)
-
-        self._self_blocked = blocked
-        self._self_allowed = allowed or None
-
-    def _check(self, name):
-        if self._self_allowed is not None:
-            if name not in self._self_allowed:
-                raise AttributeError(f"Attribute '{name}' is not allowed")
-        elif name in self._self_blocked:
-            raise AttributeError(f"Attribute '{name}' is blocked")
-
-    def __getattr__(self, name):
-        self._check(name)
-        return super().__getattr__(name)
-
-    def __setattr__(self, name, value):
-        if not name.startswith('_self_'):
-            self._check(name)
-        super().__setattr__(name, value)
-
-class WeakRestrictedProxy(RestrictedProxy):
-    """A transparent proxy that hands out an object without handing out full
-    control of it: named attributes raise AttributeError instead of resolving,
-    and the reference held is weak, so the proxy never keeps the target alive.
-
-    Pass either `blocked` (deny-list -- everything else passes) or `allowed`
-    (allow-list -- everything else is denied), never both. `callback` is
-    forwarded to weakref.proxy() and fires when the target is collected.
-
-    Built on wrapt.ObjectProxy rather than a hand-written __getattr__ shim
-    because ObjectProxy also forwards dunders, `isinstance`, and the operator
-    protocols -- a plain shim would silently fail on all of those. wrapt
-    reserves the `_self_` prefix for the proxy's own state, which is why the
-    two attributes below are named that way and why __setattr__ lets that
-    prefix through unchecked.
-    """
-
-    def __init__(
+        def __init__(
             self,
-            obj: _T,
+            obj: Any,
             blocked: Optional["MaybeContainer[str]"] = None,
             allowed: Optional["MaybeContainer[str]"] = None,
-            callback: Optional[Callable[[_T], Any]] = None
-        ):
-        super().__init__(
-            weakref.proxy(obj, callback), 
-            blocked, 
-            allowed, 
-            )
+            ):
+
+            blocked = to_frozenset(blocked)
+            allowed = to_frozenset(allowed)
+
+            if blocked and allowed:
+                raise ValueError("blocked and allowed cannot both be provided")
+
+            super().__init__(obj)
+
+            self._self_blocked = blocked
+            self._self_allowed = allowed or None
+
+        def _check(self, name):
+            if self._self_allowed is not None:
+                if name not in self._self_allowed:
+                    raise AttributeError(f"Attribute '{name}' is not allowed")
+            elif name in self._self_blocked:
+                raise AttributeError(f"Attribute '{name}' is blocked")
+
+        def __getattr__(self, name):
+            self._check(name)
+            return super().__getattr__(name)
+
+        def __setattr__(self, name, value):
+            if not name.startswith('_self_'):
+                self._check(name)
+            super().__setattr__(name, value)
+
+    class WeakRestrictedProxy(RestrictedProxy):
+        """A transparent proxy that hands out an object without handing out full
+        control of it: named attributes raise AttributeError instead of resolving,
+        and the reference held is weak, so the proxy never keeps the target alive.
+
+        Pass either `blocked` (deny-list -- everything else passes) or `allowed`
+        (allow-list -- everything else is denied), never both. `callback` is
+        forwarded to weakref.proxy() and fires when the target is collected.
+
+        Built on wrapt.ObjectProxy rather than a hand-written __getattr__ shim
+        because ObjectProxy also forwards dunders, `isinstance`, and the operator
+        protocols -- a plain shim would silently fail on all of those. wrapt
+        reserves the `_self_` prefix for the proxy's own state, which is why the
+        two attributes below are named that way and why __setattr__ lets that
+        prefix through unchecked.
+        """
+
+        def __init__(
+                self,
+                obj: _T,
+                blocked: Optional["MaybeContainer[str]"] = None,
+                allowed: Optional["MaybeContainer[str]"] = None,
+                callback: Optional[Callable[[_T], Any]] = None
+            ):
+            super().__init__(
+                weakref.proxy(obj, callback),
+                blocked,
+                allowed,
+                )
+else:
+    RestrictedProxy = _unavailable_class("RestrictedProxy", ("wrapt", "proxy"))
+    WeakRestrictedProxy = _unavailable_class("WeakRestrictedProxy", ("wrapt", "proxy"))
 
 class AioThreadWorker:
     """Runs coroutine functions on a private event loop in its own thread.
