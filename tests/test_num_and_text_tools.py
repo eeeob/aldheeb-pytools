@@ -1,4 +1,4 @@
-from pytools import to_int, calc, apply_discount, reverse_discount, clean_spaces, to_str, split_part
+from pytrove import to_int, calc, apply_discount, reverse_discount, clean_spaces, to_str, split_part
 
 
 def test_to_int_basic():

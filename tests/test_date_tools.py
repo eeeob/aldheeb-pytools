@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from pytools import stamp_to_date, date_to_stamp, date_utc, time_utc, arabic_time
+from pytrove import stamp_to_date, date_to_stamp, date_utc, time_utc, arabic_time
 
 
 def test_stamp_to_date_roundtrip():

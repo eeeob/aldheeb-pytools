@@ -1,10 +1,10 @@
-# aldheeb-pytools 🛠️
+# pytrove 🛠️
 
-[![PyPI version](https://img.shields.io/pypi/v/aldheeb-pytools)](https://pypi.org/project/aldheeb-pytools/)
-[![Python versions](https://img.shields.io/pypi/pyversions/aldheeb-pytools)](https://pypi.org/project/aldheeb-pytools/)
+[![PyPI version](https://img.shields.io/pypi/v/pytrove)](https://pypi.org/project/pytrove/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pytrove)](https://pypi.org/project/pytrove/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**aldheeb-pytools** is a modern Python utilities library providing async-ready helpers for backend systems, databases, cryptography, and Telegram automation.
+**pytrove** is a modern Python utilities library providing async-ready helpers for backend systems, databases, cryptography, and Telegram automation.
 
 ---
 
@@ -28,7 +28,7 @@ Starting from `v0.2.0`, the library uses **optional dependencies** — install o
 ### Minimal install (no optional dependencies)
 
 ```bash
-pip install aldheeb-pytools
+pip install pytrove
 ```
 
 ### Install specific features
@@ -46,13 +46,13 @@ pip install aldheeb-pytools
 
 ```bash
 # Single feature
-pip install "aldheeb-pytools[crypto]"
+pip install "pytrove[crypto]"
 
 # Multiple features
-pip install "aldheeb-pytools[crypto, mongo, phone]"
+pip install "pytrove[crypto, mongo, phone]"
 
 # Everything
-pip install "aldheeb-pytools[full]"
+pip install "pytrove[full]"
 ```
 
 > **Note:** If you try to use a feature without its required packages installed, you'll get a clear `ImportError` with the exact install command needed.
@@ -62,7 +62,7 @@ pip install "aldheeb-pytools[full]"
 To install directly from the `main` branch (ahead of the latest PyPI release):
 
 ```bash
-pip install git+https://github.com/eeeob/aldheeb-pytools.git --force-reinstall
+pip install git+https://github.com/eeeob/pytrove.git --force-reinstall
 ```
 
 ---
@@ -72,11 +72,11 @@ pip install git+https://github.com/eeeob/aldheeb-pytools.git --force-reinstall
 ### 🔐 Encryption example
 
 ```bash
-pip install "aldheeb-pytools[crypto]"
+pip install "pytrove[crypto]"
 ```
 
 ```python
-from pytools import encrypt, decrypt
+from pytrove import encrypt, decrypt
 
 key = "my-secure-key"
 
@@ -90,11 +90,11 @@ print(decrypted)
 ### 🗄️ MongoDB example
 
 ```bash
-pip install "aldheeb-pytools[mongo]"
+pip install "pytrove[mongo]"
 ```
 
 ```python
-from pytools import MongoIndex
+from pytrove import MongoIndex
 
 index = MongoIndex.from_dict({"key": {"field": 1}})
 ```
@@ -102,11 +102,11 @@ index = MongoIndex.from_dict({"key": {"field": 1}})
 ### 🤖 Telegram example
 
 ```bash
-pip install "aldheeb-pytools[tg]"
+pip install "pytrove[tg]"
 ```
 
 ```python
-from pytools import format_tg_username, mention_tg_user
+from pytrove import format_tg_username, mention_tg_user
 
 username = format_tg_username("@myuser")
 mention = mention_tg_user(123456789, "John")
@@ -117,8 +117,8 @@ mention = mention_tg_user(123456789, "John")
 ## 🧪 Development Setup
 
 ```bash
-git clone https://github.com/eeeob/aldheeb-pytools.git
-cd aldheeb-pytools
+git clone https://github.com/eeeob/pytrove.git
+cd pytrove
 pip install -e ".[full,dev]"
 ```
 
@@ -142,4 +142,4 @@ See the [LICENSE](LICENSE) file for details.
 ## 📬 Contact
 
 * Email: [aldheeb01@gmail.com](mailto:aldheeb01@gmail.com)
-* GitHub: https://github.com/eeeob/aldheeb-pytools
+* GitHub: https://github.com/eeeob/pytrove

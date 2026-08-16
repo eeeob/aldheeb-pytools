@@ -1,7 +1,7 @@
 import pytest
 
-from pytools import safe_call, raise_if, to_coroutine, set_func_attrs
-from pytools import generate_secret, patch_cls
+from pytrove import safe_call, raise_if, to_coroutine, set_func_attrs
+from pytrove import generate_secret, patch_cls
 
 
 def test_safe_call_returns_result_on_success():

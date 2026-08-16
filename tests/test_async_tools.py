@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from pytools import to_thread, gather_helper, gather_abort, safe_await
+from pytrove import to_thread, gather_helper, gather_abort, safe_await
 
 
 async def _ok(x):

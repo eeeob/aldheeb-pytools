@@ -2,7 +2,7 @@
 vs typing.Union cross-version compatibility fix in validate_tools.py."""
 from enum import Enum
 
-from pytools import (
+from pytrove import (
     is_container, is_mapping, is_sub_container, is_sub_mapping,
     is_email, is_exception, flat_cont, to_list, to_set, to_tuple,
     to_frozenset, clean_none_values, enum_to_value, value_to_enum,
@@ -51,7 +51,7 @@ def test_is_sub_container_and_is_sub_mapping():
 def test_flat_cont_flattens_nested_containers():
     # This is the exact call shape (`flat_cont(container.values())`) that runs
     # at *module import time* in tg_tools.py — a regression here breaks
-    # `import pytools` entirely, which is exactly what happened pre-fix on
+    # `import pytrove` entirely, which is exactly what happened pre-fix on
     # Python versions where isinstance() rejects a bare typing.Union.
     assert flat_cont([1, [2, [3, None]], (4,)]) == [1, 2, 3, 4]
     assert flat_cont(None) == []

@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  # Guards the README's "minimal install" promise: `pip install aldheeb-pytools`
+  # Guards the README's "minimal install" promise: `pip install pytrove`
   # (no extras) must be importable stand-alone on every Python version the
   # classifiers/Requires-Python claim to support. This is the exact scenario
   # that used to break at import time (typing.Union isinstance() incompatibility
@@ -31,7 +31,7 @@ jobs:
           pip install .
 
       - name: Import smoke test
-        run: python -c "import pytools; print(len(pytools.__all__), 'symbols exported OK')"
+        run: python -c "import pytrove; print(len(pytrove.__all__), 'symbols exported OK')"
 
   test:
     runs-on: ubuntu-latest

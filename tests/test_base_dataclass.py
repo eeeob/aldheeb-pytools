@@ -14,7 +14,7 @@ from_dict()/to_dict() is first called.
 """
 from dataclasses import dataclass
 
-from pytools.models import BaseDataClass
+from pytrove.models import BaseDataClass
 
 
 @dataclass

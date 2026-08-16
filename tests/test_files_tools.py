@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from pytools import load_json, save_json
+from pytrove import load_json, save_json
 
 
 def test_save_and_load_roundtrip(tmp_path):

@@ -15,7 +15,7 @@ def _build_error_msg(packages, missing):
 
     return (
         f"To use this feature, all required packages must be installed.\n"
-        f"Run: pip install 'aldheeb-pytools[{all_extras}]'\n"
+        f"Run: pip install 'pytrove[{all_extras}]'\n"
         f"\n"
         f"Required : {all_names}\n"
         f"Missing  : {missing_names}"

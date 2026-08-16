@@ -2,8 +2,8 @@ import pytest
 
 pytest.importorskip("cryptography")
 
-from pytools import encrypt, decrypt, d_encrypt, d_decrypt
-from pytools.errors import ValidationError
+from pytrove import encrypt, decrypt, d_encrypt, d_decrypt
+from pytrove.errors import ValidationError
 
 
 def test_encrypt_decrypt_roundtrip_bytes():
