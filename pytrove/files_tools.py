@@ -161,9 +161,7 @@ def read_json(
     ) -> Union[JsonValue, _T]:
 
     try:
-        content = read_file(path, encoding="utf-8", lock=lock)
-        data = json.loads(content, **kw)
-        del content
+        data = json.loads(read_file(path, encoding="utf-8", lock=lock), **kw)
     except FileNotFoundError:
         data = {} if default is _NOT_SET else default
 
@@ -188,7 +186,12 @@ load_json = read_json
 save_json = write_json
 
 @_optional_import(("jsonref", "jsonref"))
-def load_ref_json(path: PathLike, lock: Optional[LockProtocol] = None, **kw) -> JsonValue:
+def load_ref_json(
+    path: PathLike, 
+    default: _T = cast(dict, _NOT_SET), 
+    lock: Optional[LockProtocol] = None, **kw
+    ) -> Union[JsonValue, _T]:
+
     """Load the JSON file at `path` and resolve every `$ref` inside it.
 
     `base_uri` defaults to the file's own location (as a `file://` URI) so
@@ -203,10 +206,12 @@ def load_ref_json(path: PathLike, lock: Optional[LockProtocol] = None, **kw) -> 
     kw.setdefault("lazy_load", False)
     kw.setdefault("base_uri", path.as_uri())
 
-    return jsonref.loads(
-        read_file(path, encoding="utf-8", lock=lock),
-        **kw
-    )
+    try:
+        data = jsonref.loads(read_file(path, encoding="utf-8", lock=lock), **kw)
+    except FileNotFoundError:
+        data = {} if default is _NOT_SET else default
+
+    return data
     
 
 
