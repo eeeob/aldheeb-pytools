@@ -311,7 +311,7 @@ def validation(cond: _False, custom_exc: Optional[Union[BaseException, str]] = N
 def validation(cond: bool, custom_exc = None):
     if not cond:
         if is_exception(custom_exc):
-            raise custom_exc
+            raise custom_exc from None
         elif isinstance(custom_exc, str):
             raise ValidationError(custom_exc)
         raise ValidationError
@@ -329,55 +329,54 @@ def any_deep(*values: NestedContainer[Any]) -> bool:
     return any(iter_flat_cont(values))
 
 
-if HAS_TYPEGUARD:
-    def checker_lookup(origin_type: Any, *_):
-        """typeguard checker_lookup_functions hook (registered at import time,
-        below), giving check_type()/validate_type() two behaviors typeguard
-        doesn't have out of the box:
 
-          - checking a value against an Enum class succeeds for any of that
-            enum's *values*, not just its members -- `check_type(1, SomeIntEnum)`
-            passes if `SomeIntEnum(1)` is valid, without requiring the caller to
-            already hold an enum member;
-          - checking a value against this package's own `Container` type (e.g.
-            `NestedContainer[int]`) recurses into it and validates every element
-            against the type argument, since typeguard has no built-in notion of
-            this project's Container union.
+@_optional_import(("typeguard", "typecheck"))
+def checker_lookup(origin_type: Any, *_):
+    """typeguard checker_lookup_functions hook (registered at import time,
+    below), giving check_type()/validate_type() two behaviors typeguard
+    doesn't have out of the box:
 
-        typeguard calls every registered lookup with the type being checked and
-        returns the first non-None validator; returning None here means "not one
-        of ours, let typeguard's own lookups handle it".
-        """
+        - checking a value against an Enum class succeeds for any of that
+        enum's *values*, not just its members -- `check_type(1, SomeIntEnum)`
+        passes if `SomeIntEnum(1)` is valid, without requiring the caller to
+        already hold an enum member;
+        - checking a value against this package's own `Container` type (e.g.
+        `NestedContainer[int]`) recurses into it and validates every element
+        against the type argument, since typeguard has no built-in notion of
+        this project's Container union.
 
-        def validate_enum(value, origin_type: EnumType, *_):
+    typeguard calls every registered lookup with the type being checked and
+    returns the first non-None validator; returning None here means "not one
+    of ours, let typeguard's own lookups handle it".
+    """
+
+    def validate_enum(value, origin_type: EnumType, *_):
+        try:
+            origin_type(value)
+        except (ValueError, TypeError) as exc:
+            raise TypeCheckError(str(exc)) from exc
+
+    def validate_container(value, origin_type, args: Tuple[Any], memo: TypeCheckMemo, *_):
+        if not is_container(value):
+            raise TypeCheckError("is not container")
+
+        if not args or args == (Any,):
+            return
+
+        samples = memo.config.collection_check_strategy.iterate_samples(value)
+
+        for i, v in enumerate(samples):
             try:
-                origin_type(value)
-            except (ValueError, TypeError) as exc:
-                raise TypeCheckError(str(exc)) from exc
+                check_type_internal(v, args[0], memo)
+            except TypeCheckError as exc:
+                exc.append_path_element(f"item {i}")
+                raise
 
-        def validate_container(value, origin_type, args: Tuple[Any], memo: TypeCheckMemo, *_):
-            if not is_container(value):
-                raise TypeCheckError("is not container")
+    if isinstance(origin_type, EnumType):
+        return validate_enum
 
-            if not args or args == (Any,):
-                return
-
-            samples = memo.config.collection_check_strategy.iterate_samples(value)
-
-            for i, v in enumerate(samples):
-                try:
-                    check_type_internal(v, args[0], memo)
-                except TypeCheckError as exc:
-                    exc.append_path_element(f"item {i}")
-                    raise
-
-        if isinstance(origin_type, EnumType):
-            return validate_enum
-
-        if is_sub_container(origin_type):
-            return validate_container
-
-    checker_lookup_functions.append(checker_lookup)
+    if is_sub_container(origin_type):
+        return validate_container
 
 @_optional_import(("typeguard", "typecheck"))
 def validate_type(value: Any, annotation: Any) -> None:
@@ -389,6 +388,10 @@ def validate_type(value: Any, annotation: Any) -> None:
             )
     except TypeCheckError as exc:
         raise ValidationError(str(exc)) from exc
+
+
+if HAS_TYPEGUARD:
+    checker_lookup_functions.append(checker_lookup)
 
 
 

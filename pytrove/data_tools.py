@@ -1,10 +1,16 @@
 from typing import Union, Dict, Any, Mapping, Literal, Tuple, Type, overload
 from enum import Enum
 
-from .typings import _T, _KT, _VT, _EnumT, Container, NestedContainer, NestedStrKeyDict
+from .typings import _T, _KT, _VT, _EnumT, Container, NestedContainer, NestedStrKeyDict, JsonValue
 from .errors import ValidationError
 from .validate_tools import is_container, is_mapping
 from .iter_tools import iter_flat_cont, to_frozenset
+from ._optional import _optional_import
+
+try:
+    import jsonref
+except ImportError:
+    pass
 
 
 
@@ -109,7 +115,6 @@ def clean_none_values(data: _T) -> _T:
 def clean_none_kw(**kwargs) -> Dict[str, Any]:
     return clean_none_values(kwargs)
 
-
 def get_nested_dict_value(dct: NestedStrKeyDict[_T], path: str, sep: str = ".") -> _T:
     for key in path.split(sep):
         dct = dct[key]
@@ -148,13 +153,20 @@ def get_nested_dict_key(path_dct: NestedStrKeyDict[Literal[True, 1]], sep: str =
     return flatten(path_dct)
 
 
-    
+@_optional_import(("jsonref", "jsonref"))
+def resolve_json_refs(content: JsonValue, **kw) -> JsonValue:
+    kw.setdefault("proxies", False)
+    kw.setdefault("lazy_load", False)
+    return jsonref.replace_refs(content, **kw)
+
+
 __all__ = (
-    "enum_to_value", 
-    "clean_none_values", 
-    "value_to_enum", 
-    "clean_none_kw", 
-    "get_nested_dict_value", 
-    "get_nested_dict_key", 
+    "enum_to_value",
+    "clean_none_values",
+    "value_to_enum",
+    "clean_none_kw",
+    "get_nested_dict_value",
+    "get_nested_dict_key",
+    "resolve_json_refs",
 
 )

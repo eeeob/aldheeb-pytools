@@ -6,13 +6,12 @@ except ImportError:  # Python < 3.11
     from typing_extensions import Self
 
 from dataclasses import field, dataclass
-from pathlib import Path
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor
 
 from ..typings import (
     MaybeAwaitable, Number, 
-    MaybeCoroutineCallable, 
+    MaybeCoroutineCallable, PathLike, 
     _T, _KT, _VT
 )
 from ..enums import TriggerOn
@@ -20,7 +19,7 @@ from ..enums import TriggerOn
 
 from ..validate_tools import is_exception
 from ..async_tools import maybe_awaitable, to_thread, safe_wait_task
-from ..files_tools import load_json, save_json
+from ..files_tools import read_json, write_json
 
 from .base import BaseDataClass
 
@@ -67,7 +66,7 @@ class DeferredCall(Generic[_T]):
 
 @dataclass(slots=True)
 class JsonContainer(Generic[_KT, _VT], BaseDataClass):
-    path: Union[str, Path]
+    path: PathLike
     lock: Optional[RLock] = None
 
     data: Dict[_KT, _VT] = field(default=_NOT_SET, init=False)
@@ -80,13 +79,13 @@ class JsonContainer(Generic[_KT, _VT], BaseDataClass):
 
     def load(self, **kw) -> None:
         if not self.is_loaded():
-            self.data = load_json(self.path, lock=self.lock, **kw)
+            self.data = read_json(self.path, lock=self.lock, **kw)
 
     def save(self, **kw) -> None:
         if not self.is_loaded():
             raise RuntimeError("JsonContainer has no data loaded to save")
 
-        save_json(
+        write_json(
             self.path, 
             self.data, 
             self.lock, 

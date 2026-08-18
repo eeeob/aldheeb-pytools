@@ -2,18 +2,22 @@ from typing import (
     Collection, Generator, Union, Reversible,
     Sequence, AbstractSet, Mapping, TypeAlias, List,
     Any, Dict, Annotated, TYPE_CHECKING, Callable, Coroutine,
-    Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Hashable
+    Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Hashable, Protocol
 )
 
 from enum import EnumMeta as EnumType, Enum  # EnumType is only an alias for EnumMeta added in 3.11
 
 import sys
+import os
+
+
+class LockProtocol(Protocol):
+    def acquire(self) -> bool: ...
+    def release(self) -> Any: ...
 
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
-
-
 
 
 # PEP 695's `type X[T] = ...` statement is a hard SyntaxError before Python
@@ -81,6 +85,7 @@ NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType, Awa
 PhoneNumber: TypeAlias = Annotated[str, "Phone number in international format, e.g. +967xxxxxxxxx"]
 RegionCode: TypeAlias = Annotated[str, "ISO region code, verify that it is valid"]
 Number: TypeAlias = Union[int, float]
+PathLike: TypeAlias = Union[str, bytes, "os.PathLike[str]", "os.PathLike[bytes]"]
 
 
 _CT = TypeVar("_CT", bound=type)
@@ -113,7 +118,10 @@ __all__ = (
     "CountryInfo",
     "Number",
     "MaybeCoroutineCallable",
-    "MaybeContainer", "JsonValue",
+    "MaybeContainer", 
+    "JsonValue", 
+    "PathLike", 
+    "LockProtocol", 
     "_P", "_T", "_CT", "_FT",
     "_KT", "_VT", "_True", "_False",
     "_EnumT", "_ExcT", 
