@@ -15,6 +15,7 @@ _T = TypeVar("_T")
 
 
 
+
 # PEP 695's `type X[T] = ...` statement is a hard SyntaxError before Python
 # 3.12 -- an `if sys.version_info >= (3, 12):` guard around it in THIS file
 # would not help, since the whole file is parsed before any branch ever
