@@ -44,6 +44,7 @@ pip install pytrove
 | `bs4` | `beautifulsoup4` | HTML email parsing |
 | `typecheck` | `typeguard` | Runtime type validation (`validate_type`) |
 | `proxy` | `wrapt` | Restricted object proxies (`RestrictedProxy`, `WeakRestrictedProxy`, `AioThreadWorker.get_loop`) |
+| `locale` | `babel` | Native-language country/language names (`get_cname_native`, `get_clanguage_code`, `get_clanguage_name`) |
 | `full` | everything above | All features |
 
 ```bash
@@ -66,7 +67,11 @@ To install directly from the `main` branch (ahead of the latest PyPI release):
 ```bash
 pip install git+https://github.com/eeeob/pytrove.git --force-reinstall
 ```
-
+---
+### 🔹 Without Deps
+```bash
+pip install git+https://github.com/eeeob/pytrove.git --force-reinstall --no-deps
+```
 ---
 
 ## 🚀 Quick Start

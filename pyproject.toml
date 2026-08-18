@@ -51,9 +51,10 @@ phone = ["phonenumbers>=9.0.21"]
 tg = ["kurigram>=2.1.35"]
 typecheck = ["typeguard>=4.3"]
 proxy = ["wrapt>=1.16"]
+locale = ["babel>=2.14"]
 
 full = [
-    "pytrove[imap,phone,country,bs4,mongo,tg,crypto,typecheck,proxy]"
+    "pytrove[imap,phone,country,bs4,mongo,tg,crypto,typecheck,proxy,locale]"
 ]
 
 [tool.hatch.build.targets.sdist]
