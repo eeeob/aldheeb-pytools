@@ -48,7 +48,7 @@ else:
 
     MaybeCoroutine: TypeAlias = Union[_T, Coroutine[Any, Any, _T]]
     MaybeCoroutineCallable: TypeAlias = Callable[_P, MaybeCoroutine[_T]]
-    MaybeAwaitableCallable: TypeAlias = Callable[_P, Union[Awaitable[_T], _T]]
+    MaybeAwaitableCallable: TypeAlias = Callable[_P, Union[_T, Awaitable[_T]]]
     # Written out in full (not `MaybeCoroutineCallable[_P, _T]`) because
     # substituting into an *already-subscripted* ParamSpec generic nested
     # inside another Union is unreliable pre-3.14 -- it raises "Expected a

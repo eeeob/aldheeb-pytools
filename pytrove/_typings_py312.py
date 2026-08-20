@@ -28,7 +28,7 @@ type NestedStrKeyDict[V] = Dict[str, V | NestedStrKeyDict[V]]
 
 type MaybeCoroutine[R] = R | Coroutine[Any, Any, R]
 type MaybeCoroutineCallable[**P, R] = Callable[P, MaybeCoroutine[R]]
-type MaybeAwaitableCallable[**P, R] = Callable[P, Awaitable[R] | R]
+type MaybeAwaitableCallable[**P, R] = Callable[P, R | Awaitable[R]]
 type MaybeAwaitable[**P, R] = MaybeCoroutineCallable[P, R] |  Awaitable[R]
 
 
