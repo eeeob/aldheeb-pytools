@@ -1,7 +1,12 @@
 from typing import Union, List, Callable, Optional, Awaitable, overload, Type, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
-from .typings import NestedContainer, MaybeAwaitable, _True, _False, _P, _T, _ExcT
+from .typings import (
+    NestedContainer, Container, MaybeAwaitable, 
+    MaybeAwaitableCallable, 
+    _True, _False, 
+    _P, _T, _ExcT, 
+)
 from .validate_tools import is_exception, iscoroutinefunction_wrapped
 from .iter_tools import iter_flat_cont
 
@@ -150,38 +155,38 @@ async def gather_abort(
 
 @overload
 async def safe_await(
-    awaitable: Awaitable[_T],
+    awaitables: Awaitable[_T],
     *,
     log_exc: bool = True,
 ) -> Union[_T, Exception]: ...
 @overload
 async def safe_await(
-    awaitable: Awaitable[_T],
+    awaitables: Awaitable[_T],
     *,
     return_exc: _False,
     log_exc: bool = True,
 ) -> _T: ...
 @overload
 async def safe_await(
-    awaitable: NestedContainer[Optional[Awaitable[_T]]], 
+    awaitables: Container[NestedContainer[Optional[Awaitable[_T]]]],
     *, 
     log_exc: bool = True,
 ) -> List[Union[_T, Exception]]: ...
 @overload
 async def safe_await(
-    awaitable: NestedContainer[Optional[Awaitable[_T]]],
-    *,
+    awaitables: Container[NestedContainer[Optional[Awaitable[_T]]]],
+    *, 
     return_exc: _False,
     log_exc: bool = True,
 ) -> List[_T]: ...
 @overload
 async def safe_await(
-    *awaitable: NestedContainer[Optional[Awaitable[_T]]],
+    *awaitables: NestedContainer[Optional[Awaitable[_T]]],
     log_exc: bool = True,
 ) -> List[Union[_T, Exception]]: ...
 @overload
 async def safe_await(
-    *awaitable: NestedContainer[Optional[Awaitable[_T]]],
+    *awaitables: NestedContainer[Optional[Awaitable[_T]]],
     return_exc: _False,
     log_exc: bool = True,
 ) -> List[_T]: ...
@@ -421,6 +426,15 @@ async def run_awaitable_in_coro(awaitable: Awaitable[_T]) -> _T:
     return await awaitable
 
 
+async def call_sync_or_await(func: MaybeAwaitableCallable[_P, _T], *args: _P.args, **kwargs: _P.kwargs) -> _T:
+    result = func(*args, **kwargs)
+
+    if inspect.isawaitable(result):
+        result = await result
+
+    return result
+
+
     
     
 __all__ = [
@@ -432,4 +446,5 @@ __all__ = [
     "maybe_awaitable",
     "run_awaitable_in_coro",
     "gather_abort",
+    "call_sync_or_await", 
 ]

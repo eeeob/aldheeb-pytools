@@ -1,73 +1,43 @@
 from typing import (
     List, Set, Union,
     FrozenSet, Tuple, Iterable,
-    Generator, Any, overload
+    Generator, Optional
 )
 
 
-from .typings import Container, NestedContainer, _T, _VT
+from .typings import NestedContainer, MaybeContainer, _T, _VT
 from .validate_tools import is_container
 
 
-
-
-@overload
-def to_list(value: None) -> List: ...
-@overload
-def to_list(value: Union[_T, 'Container[_T]']) -> List[_T]: ...
-def to_list(value: Union[None, _T, 'Container[_T]']):
+def to_list(value: Optional[MaybeContainer[_T]]) -> List[_T]:
     if is_container(value):
         return list(value)
     return [value] if value is not None else []
 
-@overload
-def to_tuple(value: None) -> Tuple: ...
-@overload
-def to_tuple(value: Union[_T, 'Container[_T]']) -> Tuple[_T, ...]: ...
-def to_tuple(value: Union[None, _T, 'Container[_T]']):
+def to_tuple(value: Optional[MaybeContainer[_T]]) -> Tuple[_T, ...]:
     if is_container(value):
         return tuple(value)
     return (value, ) if value is not None else tuple()
 
-@overload
-def to_set(value: None) -> Set: ...
-@overload
-def to_set(value: Union[_T, 'Container[_T]']) -> Set[_T]: ...
-def to_set(value: Union[None, _T, 'Container[_T]']):
+def to_set(value: Optional[MaybeContainer[_T]]) -> Set[_T]:
     if is_container(value):
         return set(value)
     return {value} if value is not None else set()
 
-@overload
-def to_frozenset(value: None) -> FrozenSet: ...
-@overload
-def to_frozenset(value: Union[_T, 'Container[_T]']) -> FrozenSet[_T]: ...
-def to_frozenset(value: Union[None, _T, 'Container[_T]']):
+def to_frozenset(value: Optional[MaybeContainer[_T]]) -> FrozenSet[_T]:
     if is_container(value):
         return frozenset(value)
     return frozenset({value}) if value is not None else frozenset()
 
 
-@overload
-def iter_flat_cont(*containers: None) -> Generator[Any, None, None]: ...
-@overload
-def iter_flat_cont(*containers: NestedContainer[None]) -> Generator[Any, None, None]: ...
-@overload
-def iter_flat_cont(*containers: NestedContainer[_T]) -> Generator[_T, None, None]: ...
-def iter_flat_cont(*containers):
+def iter_flat_cont(*containers: NestedContainer[Optional[_T]]) -> Generator[_T, None, None]:
     for item in containers:
         if is_container(item):
             yield from iter_flat_cont(*item)
         elif item is not None:
             yield item
 
-@overload
-def flat_cont(*containers: None) -> List: ...
-@overload
-def flat_cont(*containers: NestedContainer[None]) -> List: ...
-@overload
-def flat_cont(*containers: NestedContainer[_T]) -> List[_T]: ...
-def flat_cont(*containers):
+def flat_cont(*containers: NestedContainer[Optional[_T]]) -> List[_T]:
     return list(iter_flat_cont(*containers))
 
 
@@ -97,7 +67,6 @@ def dedupe(iterable: Iterable[_T], hashable: bool = True) -> List[_T]:
             result.append(v)
 
     return result
-
 
 def pad_list(values: List[_VT], length: int, exact: bool = False, default: _T = None) -> List[Union[_VT, _T]]:
     """Pad `values` in place to `length`, filling missing positions with

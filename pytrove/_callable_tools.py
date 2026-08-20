@@ -1,51 +1,58 @@
 from typing import (
-    Callable, Any, Coroutine, Awaitable, 
-    Optional, Protocol, Tuple, Type, 
-    TypeAlias, TypeVar, Union,
-    overload,
+    Callable, Any, Optional,
+    Tuple, Type, TypeAlias,
+    TypeVar, Union, Coroutine,
+    Protocol, Awaitable, overload
 )
-
-from .typings import _T, _P
-
-_ET = TypeVar("_ET")  # middleware(): on_error's return type
-_AT = TypeVar("_AT")  # middleware(): after's return type
+from .typings import _P, _T, _VT, _True, _False
 
 
-class _PassthroughMiddlewareDecorator(Protocol):
-    """middleware() factory return type, after=None and on_error=None: the
-    wrapped func's own return type passes through untouched, so this needs
-    no type parameters of its own -- only __call__'s per-application _P/_T.
-    """
+_Coro: TypeAlias = Coroutine[Any, Any, _T]
 
-    # Awaitable-func variant listed first -- see the module-level comment
-    # above the middleware() overloads for why order matters here.
+_ET = TypeVar("_ET", covariant=True)  # middleware(): on_error's return type -- only ever a __call__ return, never a parameter
+_AT = TypeVar("_AT", covariant=True)  # middleware(): after's return type -- same reasoning
+
+
+class _WaitOnErrorDecorator(Protocol[_P, _ET]):
     @overload
-    def __call__(self, func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Coroutine[Any, Any, _T]]: ...
-    @overload
-    def __call__(self, func: Callable[_P, _T]) -> Callable[_P, _T]: ...
-
-class _OnErrorMiddlewareDecorator(Protocol[_ET]):
-    """middleware() factory return type, on_error given but after=None: the
-    result becomes Union[func's own _T, on_error's _ET] -- _ET is fixed by
-    the middleware() call itself (hence Protocol[_ET]), _P/_T stay free
-    until __call__ is actually applied to a func.
-    """
-
-    @overload
-    def __call__(self, func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Coroutine[Any, Any, Union[_T, _ET]]]: ...
+    def __call__(self, func: Callable[_P, _Coro[_T]]) -> Callable[_P, _Coro[Union[_T, _ET]]]: ...
     @overload
     def __call__(self, func: Callable[_P, _T]) -> Callable[_P, Union[_T, _ET]]: ...
 
-class _AfterMiddlewareDecorator(Protocol[_AT]):
-    """middleware() factory return type whenever after is given (with or
-    without on_error): after's return value always replaces the result, so
-    the shape only depends on _AT -- same reasoning as _OnErrorMiddlewareDecorator.
-    """
 
+class _AwaitOnErrorDecorator(Protocol[_P, _ET]):
     @overload
-    def __call__(self, func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Coroutine[Any, Any, _AT]]: ...
+    def __call__(self, func: Callable[_P, _Coro[_T]]) -> Callable[_P, _Coro[Union[_T, _ET]]]: ...
+    @overload
+    def __call__(self, func: Callable[_P, _T]) -> Callable[_P, Union[_T, Awaitable[_ET]]]: ...
+
+
+class _WaitAfterDecorator(Protocol[_P, _T, _AT]):
+    @overload
+    def __call__(self, func: Callable[_P, _Coro[_T]]) -> Callable[_P, _Coro[_AT]]: ...
     @overload
     def __call__(self, func: Callable[_P, _T]) -> Callable[_P, _AT]: ...
+
+
+class _AwaitAfterDecorator(Protocol[_P, _T, _AT]):
+    @overload
+    def __call__(self, func: Callable[_P, _Coro[_T]]) -> Callable[_P, _Coro[_AT]]: ...
+    @overload
+    def __call__(self, func: Callable[_P, _T]) -> Callable[_P, Union[_T, Awaitable[_AT]]]: ...
+
+
+# call_all(lazy=True)'s return type -- calling it re-enters call_all itself
+# (funcs already captured are prepended), so it needs the exact same
+# overload pair call_all has: no-args/lazy=False runs everything and
+# returns the tuple, lazy=True captures more funcs and hands back another
+# _LazyCallAll of the same _T (hence the self-reference in the second
+# overload's return type).
+class _LazyCallAll(Protocol[_T]):
+    @overload
+    def __call__(self, *funcs: Callable[[], _VT], lazy: _False = False) -> Tuple[Union[_T, _VT], ...]: ...
+    @overload
+    def __call__(self, *funcs: Callable[[], _VT], lazy: _True) -> "_LazyCallAll[Union[_T, _VT]]": ...
+
 
 _ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
 _ExcLogger: TypeAlias = Union[bool, Callable[[BaseException], Any]]

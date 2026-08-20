@@ -1,13 +1,32 @@
 from typing import (
-    Callable, Any, Coroutine, Awaitable, Hashable,
-    Optional, Tuple, Type, TypeAlias, Union, overload,
+    Callable, Any, Awaitable, Hashable,
+    Optional, Tuple, Type, Union,
+    Concatenate, overload,
 )
 
-from .typings import NestedContainer, _T, _P, _FT, _True, _False, _ExcT
+from .typings import (
+    NestedContainer, 
+    MaybeAwaitableCallable, 
+    _True, _False, 
+    _T, _P, _FT, _ExcT
+)
 from .validate_tools import iscoroutinefunction_wrapped
 from .iter_tools import iter_flat_cont, to_frozenset
-from .async_tools import run_awaitable_in_coro
+from .async_tools import run_awaitable_in_coro, call_sync_or_await
+
 from ._async_tools import _get_running_loop
+from ._callable_tools import (
+    _WaitOnErrorDecorator,
+    _AwaitOnErrorDecorator,
+    _WaitAfterDecorator,
+    _AwaitAfterDecorator,
+    _LazyCallAll,
+    _Coro,
+    _ExcFilter,
+    _ExcLogger,
+    _HARD_PROPAGATE,
+    _AT, _ET
+)
 
 import asyncio
 import functools
@@ -15,15 +34,6 @@ import logging
 
 
 log = logging.getLogger(__name__)
-
-
-_ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
-_ExcLogger: TypeAlias = Union[bool, Callable[[BaseException], Any]]
-
-# SystemExit/KeyboardInterrupt always propagate out of safe_call, unconditionally
-# -- there is no override, so exclude_exc can never usefully name them.
-_HARD_PROPAGATE = (SystemExit, KeyboardInterrupt)
-
 
 @overload
 def safe_call(
@@ -133,67 +143,204 @@ def safe_call(func, *args, return_exc = False, include_exc = None, exclude_exc =
 def raise_if(
     exc: Union[BaseException, Callable[[], BaseException]], 
     bool_value: Optional[bool] = None, 
-    values: Optional["NestedContainer[Hashable]"] = None,
+    values: NestedContainer[Optional[Hashable]] = None,
     always: bool = False,
-    ):
+    ) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]:
 
     if always and (bool_value is not None or values is not None):
         raise ValueError("raise_if: can't pass bool_value or values when always=True")
 
     values = to_frozenset(iter_flat_cont(values))
 
-    @overload
-    def decorator(func: Callable[_P, Awaitable[_T]]) -> Callable[_P, Coroutine[Any, Any, _T]]: ...
-    @overload
-    def decorator(func: Callable[_P, _T]) -> Callable[_P, _T]: ...
-    def decorator(func):
+    def decorator(func: Callable[_P, _T]) -> Callable[_P, _T]: #type: ignore 
         if iscoroutinefunction_wrapped(func):
-            @functools.wraps(func)
-            async def async_wrapper(*args: _P.args, **kwargs: _P.kwargs):
-                result = await func(*args, **kwargs)
+            async def wrapper(*args: Any, **kwargs: Any): #type: ignore
+                result = await func(*args, **kwargs) #type: ignore
                 
                 if always or result in values or (bool_value is not None and bool(result) == bool_value):
                     raise exc() if callable(exc) else exc
                 
                 return result
-            
-            return async_wrapper
+        else:
+            def wrapper(*args: Any, **kwargs: Any):
+                result = func(*args, **kwargs)
 
-        @functools.wraps(func)
-        def sync_wrapper(*args: _P.args, **kwargs: _P.kwargs):
-            result = func(*args, **kwargs)
-
-            if always or result in values or (bool_value is not None and bool(result) == bool_value):
-                raise exc() if callable(exc) else exc
-            
-            return result
+                if always or result in values or (bool_value is not None and bool(result) == bool_value):
+                    raise exc() if callable(exc) else exc
+                
+                return result
         
-        return sync_wrapper
+        return functools.wraps(func)(wrapper) #type: ignore
 
     return decorator
 
-async def await_sync(
+
+@overload
+def middleware(
+    func: Callable[_P, _Coro[_T]], 
+    *, 
+    before: Optional[MaybeAwaitableCallable[_P, Any]] = None, 
+    after: None = None, 
+    on_error: None = None, 
+) -> Callable[_P, _Coro[_T]]: ...
+@overload
+def middleware(
+    func: Callable[_P, _Coro[_T]],
+    *,
+    before: Optional[MaybeAwaitableCallable[_P, Any]] = None,
+    after: None = None,
+    on_error: MaybeAwaitableCallable[Concatenate[BaseException, _P], _ET],
+) -> Callable[_P, _Coro[Union[_T, _ET]]]: ...
+@overload
+def middleware(
+    func: Callable[_P, _Coro[_T]],
+    *,
+    before: Optional[MaybeAwaitableCallable[_P, Any]] = None,
+    after: MaybeAwaitableCallable[Concatenate[_T, _P], _AT],
+    on_error: None = None,
+) -> Callable[_P, _Coro[_AT]]: ...
+@overload
+def middleware(
+    func: Callable[_P, _Coro[_T]],
+    *,
+    before: Optional[MaybeAwaitableCallable[_P, Any]] = None,
+    on_error: MaybeAwaitableCallable[Concatenate[BaseException, _P], _ET],
+    after: MaybeAwaitableCallable[Concatenate[Union[_T, _ET], _P], _AT],
+) -> Callable[_P, _Coro[_AT]]: ...
+@overload
+def middleware(
     func: Callable[_P, _T],
-    /,
-    *args: _P.args,
-    **kwargs: _P.kwargs,
-    ) -> _T:
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: None = None,
+    on_error: None = None,
+) -> Callable[_P, _T]: ...
+@overload
+def middleware(
+    func: Callable[_P, _T],
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: None = None,
+    on_error: Callable[Concatenate[BaseException, _P], _ET],
+) -> Callable[_P, Union[_T, _ET]]: ...
+@overload
+def middleware(
+    func: Callable[_P, _T],
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: Callable[Concatenate[_T, _P], _AT],
+    on_error: None = None,
+) -> Callable[_P, _AT]: ...
+@overload
+def middleware(
+    func: Callable[_P, _T],
+    *,
+    before: Optional[Callable[_P, Any]] = None, 
+    on_error: Callable[Concatenate[BaseException, _P], _ET], 
+    after: Callable[Concatenate[Union[_T, _ET], _P], _AT], 
+) -> Callable[_P, _AT]: ...
+@overload
+def middleware(
+    func: None = None,
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: None = None,
+    on_error: None = None,
+) -> Callable[[Callable[_P, _T]], Callable[_P, _T]]: ...
+@overload
+def middleware(
+    func: None = None,
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: None = None,
+    on_error: Callable[Concatenate[BaseException, _P], Awaitable[_ET]],
+) -> _AwaitOnErrorDecorator[_P, _ET]: ...
+@overload
+def middleware(
+    func: None = None,
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: None = None,
+    on_error: Callable[Concatenate[BaseException, _P], _ET],
+) -> _WaitOnErrorDecorator[_P, _ET]: ...
+@overload
+def middleware(
+    func: None = None,
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: Callable[Concatenate[_T, _P], Awaitable[_AT]],
+    on_error: None = None,
+) -> _AwaitAfterDecorator[_P, _T, _AT]: ...
+@overload
+def middleware(
+    func: None = None,
+    *,
+    before: Optional[Callable[_P, Any]] = None,
+    after: Callable[Concatenate[_T, _P], _AT],
+    on_error: None = None,
+) -> _WaitAfterDecorator[_P, _T, _AT]: ...
+def middleware(func=None, **kw: Any): #type: ignore
+    if func is None:
+        return functools.partial(middleware, **kw)
+
+    if iscoroutinefunction_wrapped(func):
+        for _k in list(kw.keys()):
+            if _k not in ("before", "after", "on_error"):
+                raise
+            if (_call := kw[_k]) is None:
+                continue
+            kw[_k] = functools.partial(call_sync_or_await, _call)
+
+        async def wrapper(*args: Any, **kwargs: Any):
+            if (before := kw.get("before")) is not None:
+                await before(*args, **kwargs)
+
+            try:
+                result = await func(*args, **kwargs)
+            except _HARD_PROPAGATE:
+                raise
+            except BaseException as e:
+                if (on_error := kw.get("on_error")) is None:
+                    raise
+                result = await on_error(e, *args, **kwargs)
+
+            if (after := kw.get("after")) is not None:
+                result = await after(result, *args, **kwargs)
+
+            return result
+    else:
+        def wrapper(*args: Any, **kwargs: Any):
+            if (before := kw.get("before")) is not None:
+                before(*args, **kwargs)
+
+            try:
+                result = func(*args, **kwargs)
+            except _HARD_PROPAGATE:
+                raise
+            except BaseException as e:
+                if (on_error := kw.get("on_error")) is None:
+                    raise
+                result = on_error(e, *args, **kwargs)
+
+            if (after := kw.get("after")) is not None:
+                result = after(result, *args, **kwargs)
+
+            return result
     
+    return functools.wraps(func)(wrapper) #type: ignore
+
+
+async def await_sync(func: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs,) -> _T:
     return func(*args, **kwargs)
 
 
-def to_coroutine(func: Callable[_P, _T]) -> Callable[_P, Coroutine[Any, Any, _T]]:
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        return await await_sync(func, *args, **kwargs)
+def to_coroutine(func: Callable[_P, _T]) -> Callable[_P, _Coro[_T]]:
+    async def wrapper(*args, **kwargs): #type: ignore
+        return func(*args, **kwargs)
 
-    return wrapper
+    return functools.wraps(func)(wrapper) #type: ignore
 
-
-def run_awaitable_sync(
-    awaitable: Awaitable[_T],
-    loop: Optional[asyncio.AbstractEventLoop] = None,
-    ) -> _T:
+def run_awaitable_sync(awaitable: Awaitable[_T], loop: Optional[asyncio.AbstractEventLoop] = None) -> _T:
     """Run an awaitable to completion from synchronous code and return its result.
 
     If `loop` is omitted, a fresh event loop is created, driven, and torn down
@@ -245,7 +392,6 @@ def run_awaitable_sync(
 
     return asyncio.run_coroutine_threadsafe(coro, loop).result()
 
-
 @overload
 def set_func_attrs(func: _FT, **kw: Any) -> _FT: ...
 @overload
@@ -266,8 +412,8 @@ def set_func_attrs(func = None, **kw):
 @overload
 def call_all(*funcs: Callable[[], _T], lazy: _False = False) -> Tuple[_T, ...]: ...
 @overload
-def call_all(*funcs: Callable[[], _T], lazy: _True) -> Callable[[], Tuple[_T, ...]]: ...
-def call_all(*funcs: Callable[[], _T], lazy: bool = False):
+def call_all(*funcs: Callable[[], _T], lazy: _True) -> _LazyCallAll[_T]: ...
+def call_all(*funcs, lazy = False): #type: ignore
     """Call every zero-argument callable in `funcs`, in order, and return
     their results as a tuple in that same order.
 
@@ -276,14 +422,17 @@ def call_all(*funcs: Callable[[], _T], lazy: bool = False):
     `(func1(), func2(), ...)` by hand.
 
     `lazy=True` defers all of that -- `funcs` are only captured, not called
-    yet -- and returns a zero-argument callable that runs this same call_all
-    over them once it's eventually invoked.
+    yet -- and returns a callable that re-enters call_all with them prepended.
+    Calling it with no arguments runs everything captured so far and returns
+    the tuple; calling it with more funcs (optionally `lazy=True` again)
+    extends the captured set instead -- so lazy batches can be built up
+    incrementally across multiple calls before finally being run.
     """
 
     if lazy:
-        return functools.partial(call_all, *funcs)
+        return functools.partial(call_all, *funcs) #type: ignore
 
-    return tuple(func() for func in funcs)
+    return tuple(func() for func in funcs) #type: ignore
 
 
 def ignore_arguments(func: Callable[[], _T]) -> Callable[..., _T]:
@@ -356,5 +505,6 @@ __all__ = (
     "ignore_arguments",
     "return_constant",
     "call_all",
+    "middleware",
 
 )

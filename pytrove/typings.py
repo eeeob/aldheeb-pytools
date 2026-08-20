@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from typing import (
-    Collection, Generator, Union, Reversible,
+    Collection, Union, Reversible, Iterator, 
     Sequence, AbstractSet, Mapping, TypeAlias, 
-    Any, Dict, Annotated, Callable, Coroutine,
+    Any, Dict, Annotated, Callable, Coroutine, 
     Awaitable, ParamSpec, TypeVar, Literal, 
-    TypedDict, Hashable, Protocol, List,
+    TypedDict, Hashable, Protocol, List, 
+    
 )
 
 from enum import EnumMeta as EnumType, Enum  # EnumType is only an alias for EnumMeta added in 3.11
@@ -31,19 +34,18 @@ if sys.version_info >= (3, 12):
     from ._typings_py312 import *
 else:
     Container: TypeAlias = Union[
-        Generator[_T, Any, Any], Collection[_T], Reversible[_T],
-        Sequence[_T], AbstractSet[_T], Mapping[_T, Any],
-        filter, enumerate, zip
-        ]
+        Iterator[_T], Collection[_T], Reversible[_T], 
+        Sequence[_T], AbstractSet[_T], Mapping[_T, Any], 
+    ]
 
     ContainerWithoutMapping: TypeAlias = Union[
-        Generator[_T, Any, Any], Collection[_T], Reversible[_T],
-        Sequence[_T], AbstractSet[_T], filter, enumerate,
-        ]
+        Iterator[_T], Collection[_T], Reversible[_T], 
+        Sequence[_T], AbstractSet[_T], 
+    ]
 
     
     MaybeContainer: TypeAlias = Union[_T, Container[_T]]
-    NestedContainer: TypeAlias = Union[_T, "Container[NestedContainer[_T]]"]
+    NestedContainer: TypeAlias = Union[_T, Container["NestedContainer[_T]"]]
     NestedStrKeyDict: TypeAlias = Dict[str, Union[_T, "NestedStrKeyDict[_T]"]]
 
     MaybeCoroutine: TypeAlias = Union[_T, Coroutine[Any, Any, _T]]
@@ -94,6 +96,7 @@ class CountryInfo(TypedDict):
     rc: str
     flag: str
     name: str
+
 
 
 __all__ = (

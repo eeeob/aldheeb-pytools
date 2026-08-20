@@ -6,20 +6,19 @@ must never be imported unconditionally.
 """
 
 from typing import (
-    Collection, Generator, Union, Reversible,
+    Collection, Iterator, Union, Reversible,
     Sequence, AbstractSet, Mapping, Any, Dict, 
     Callable, Coroutine, Awaitable,
 )
 
 
 type Container[I] = Union[
-    Generator[I, Any, Any], Collection[I], Reversible[I],
+    Iterator[I], Collection[I], Reversible[I],
     Sequence[I], AbstractSet[I], Mapping[I, Any],
-    filter, enumerate, zip
     ]
 type ContainerWithoutMapping[I] = Union[
-    Generator[I, Any, Any], Collection[I], Reversible[I],
-    Sequence[I], AbstractSet[I], filter, enumerate,
+    Iterator[I], Collection[I], Reversible[I],
+    Sequence[I], AbstractSet[I], 
     ]
 
 type MaybeContainer[I] = I | Container[I]

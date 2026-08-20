@@ -9,7 +9,7 @@ import string
 import functools
 
 
-def unwrap_cls(cls):
+def unwrap_cls(cls: Type) -> int:
     count = 0
 
     for name in dir(cls):
