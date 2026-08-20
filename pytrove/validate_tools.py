@@ -2,7 +2,8 @@
 from typing import (
     Any, Union, Optional,
     Mapping, Type, TypeAlias,
-    overload, Tuple, get_args, get_origin,
+    Tuple, 
+    overload, get_args, get_origin,
 )
 
 from types import UnionType
@@ -71,8 +72,8 @@ EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 # isinstance()/issubclass() only accept a typing.Union directly on Python >= 3.14;
 # on 3.12/3.13 that raises TypeError. get_args() unwraps it into a plain tuple of
 # classes, which isinstance()/issubclass() have always accepted on every version.
-_CONTAINER_TYPES = get_args(Container)
-_NOT_CONTAINER_TYPES = get_args(NotContainer)
+_CONTAINER_TYPES = tuple(get_origin(arg) or arg for arg in get_args(Container))
+_NOT_CONTAINER_TYPES = tuple(get_origin(arg) or arg for arg in get_args(NotContainer))
 
 _ClassInfo: TypeAlias = Union[type, UnionType, Tuple["_ClassInfo", ...]]
 
@@ -372,7 +373,7 @@ def checker_lookup(origin_type: Any, *_):
                 exc.append_path_element(f"item {i}")
                 raise
 
-    if isinstance(origin_type, EnumType):
+    if isinstance(origin_type, type) and issubclass(origin_type, Enum):
         return validate_enum
 
     if is_sub_container(origin_type):

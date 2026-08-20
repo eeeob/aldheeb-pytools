@@ -1,8 +1,12 @@
 import asyncio
 import sys
 
-from typing import Any, Awaitable, List, Optional, Union, TYPE_CHECKING, overload
-from .typings import _T, _True, _False
+from typing import (
+    Any, Awaitable, List, Optional, Union, 
+    TypeAlias, Type, Tuple, 
+    TYPE_CHECKING, overload
+)
+from .typings import MaybeCoroutineCallable, _True, _False, _T
 
 
 _PY314 = sys.version_info >= (3, 14)
@@ -199,4 +203,7 @@ def _gather_cancel_on_error(*awaitables, return_exceptions = False):
 
 
 
+_ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
+_ExcLogger: TypeAlias = Union[bool, MaybeCoroutineCallable[[BaseException], Any]]
 
+_HARD_PROPAGATE = (SystemExit, KeyboardInterrupt)

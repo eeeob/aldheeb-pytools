@@ -1,11 +1,16 @@
-from typing import Union, List, Callable, Optional, Awaitable, overload, Any, Type, Tuple, TypeAlias
+from typing import Union, List, Callable, Optional, Awaitable, overload, Type, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
-from .typings import NestedContainer, MaybeAwaitable, MaybeCoroutineCallable, _True, _False, _P, _T, _ExcT
+from .typings import NestedContainer, MaybeAwaitable, _True, _False, _P, _T, _ExcT
 from .validate_tools import is_exception, iscoroutinefunction_wrapped
 from .iter_tools import iter_flat_cont
 
-from ._async_tools import _gather_cancel_on_error
+from ._async_tools import (
+    _gather_cancel_on_error, 
+    _ExcFilter, 
+    _ExcLogger, 
+    _HARD_PROPAGATE, 
+)
 
 import asyncio
 import functools
@@ -17,10 +22,7 @@ import traceback
 
 log = logging.getLogger(__file__)
 
-_ExcFilter: TypeAlias = Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]]
-_ExcLogger: TypeAlias = Union[bool, MaybeCoroutineCallable[[BaseException], Any]]
 
-_HARD_PROPAGATE = (SystemExit, KeyboardInterrupt)
 
 def _log_exc(
     header: Optional[str],

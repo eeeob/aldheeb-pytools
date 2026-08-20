@@ -1,8 +1,9 @@
 from typing import (
     Collection, Generator, Union, Reversible,
-    Sequence, AbstractSet, Mapping, TypeAlias, List,
-    Any, Dict, Annotated, TYPE_CHECKING, Callable, Coroutine,
-    Awaitable, ParamSpec, TypeVar, Literal, TypedDict, Hashable, Protocol
+    Sequence, AbstractSet, Mapping, TypeAlias, 
+    Any, Dict, Annotated, Callable, Coroutine,
+    Awaitable, ParamSpec, TypeVar, Literal, 
+    TypedDict, Hashable, Protocol, List,
 )
 
 from enum import EnumMeta as EnumType, Enum  # EnumType is only an alias for EnumMeta added in 3.11
@@ -29,35 +30,26 @@ _T = TypeVar("_T")
 if sys.version_info >= (3, 12):
     from ._typings_py312 import (
         Container, ContainerWithoutMapping, NestedContainer,
-        NestedStrKeyDict, MaybeCoroutineCallable, MaybeAwaitable, MaybeContainer,
+        NestedStrKeyDict, MaybeCoroutineCallable, MaybeAwaitable, 
+        MaybeContainer, MaybeAwaitableCallable, 
     )
 else:
-    if TYPE_CHECKING:
-        Container: TypeAlias = Union[
-            Generator[_T, Any, Any], Collection[_T], Reversible[_T],
-            Sequence[_T], AbstractSet[_T], Mapping[_T, Any],
-            filter, enumerate, zip]
+    Container: TypeAlias = Union[
+        Generator[_T, Any, Any], Collection[_T], Reversible[_T],
+        Sequence[_T], AbstractSet[_T], Mapping[_T, Any],
+        filter, enumerate, zip
+        ]
 
-        ContainerWithoutMapping: TypeAlias = Union[
-            Generator[_T, Any, Any], Collection[_T], Reversible[_T],
-            Sequence[_T], AbstractSet[_T], filter, enumerate,
-            ]
-
-    else:
-        Container: TypeAlias = Union[
-            Generator, Collection, Reversible,
-            Sequence, AbstractSet, Mapping,
-            filter, enumerate, zip
-            ]
-        ContainerWithoutMapping: TypeAlias = Union[
-            Generator, Collection, Reversible,
-            Sequence, AbstractSet, filter, enumerate,
-            ]
+    ContainerWithoutMapping: TypeAlias = Union[
+        Generator[_T, Any, Any], Collection[_T], Reversible[_T],
+        Sequence[_T], AbstractSet[_T], filter, enumerate,
+        ]
 
     NestedContainer: TypeAlias = Union[_T, "Container[NestedContainer]"]
     NestedStrKeyDict: TypeAlias = Dict[str, Union[_T, "NestedStrKeyDict"]]
 
     MaybeCoroutineCallable: TypeAlias = Callable[_P, Union[Coroutine[Any, Any, _T], _T]]
+    MaybeAwaitableCallable: TypeAlias = Callable[_P, Union[Awaitable[_T], _T]]
     # Written out in full (not `MaybeCoroutineCallable[_P, _T]`) because
     # substituting into an *already-subscripted* ParamSpec generic nested
     # inside another Union is unreliable pre-3.14 -- it raises "Expected a
@@ -71,7 +63,6 @@ else:
     # 3.12). Callable[_P, ...] first discovers (_P, _T), matching the
     # intended subscript order.
     MaybeAwaitable: TypeAlias = Union[Callable[_P, Union[Coroutine[Any, Any, _T], _T]], Awaitable[_T]]
-
     MaybeContainer: TypeAlias = Union[_T, "Container[_T]"]
 
 
@@ -122,6 +113,7 @@ __all__ = (
     "JsonValue", 
     "PathLike", 
     "LockProtocol", 
+    "MaybeAwaitableCallable", 
     "_P", "_T", "_CT", "_FT",
     "_KT", "_VT", "_True", "_False",
     "_EnumT", "_ExcT", 
