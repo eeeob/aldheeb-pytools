@@ -22,11 +22,25 @@ type ContainerWithoutMapping[I] = Union[
     Sequence[I], AbstractSet[I], filter, enumerate,
     ]
 
-type NestedContainer[I] = I | "Container[NestedContainer[I]]"
+type MaybeContainer[I] = I | Container[I]
+type NestedContainer[I] = I | Container[NestedContainer[I]]
 type NestedStrKeyDict[V] = Dict[str, V | NestedStrKeyDict[V]]
 
-type MaybeCoroutineCallable[**P, R] = Callable[P, Coroutine[Any, Any, R] | R]
+type MaybeCoroutine[R] = R | Coroutine[Any, Any, R]
+type MaybeCoroutineCallable[**P, R] = Callable[P, MaybeCoroutine[R]]
 type MaybeAwaitableCallable[**P, R] = Callable[P, Awaitable[R] | R]
 type MaybeAwaitable[**P, R] = MaybeCoroutineCallable[P, R] |  Awaitable[R]
 
-type MaybeContainer[I] = I | "Container[I]"
+
+__all__ = (
+    "Container",
+    "ContainerWithoutMapping",
+    "MaybeContainer",
+    "NestedContainer",
+    "NestedStrKeyDict",
+    "MaybeCoroutine",
+    "MaybeCoroutineCallable",
+    "MaybeAwaitableCallable",
+    "MaybeAwaitable",
+    
+)

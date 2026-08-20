@@ -28,11 +28,7 @@ _T = TypeVar("_T")
 # _typings_py312.py (which uses that syntax) is ever parsed, and only when
 # the running interpreter is 3.12+.
 if sys.version_info >= (3, 12):
-    from ._typings_py312 import (
-        Container, ContainerWithoutMapping, NestedContainer,
-        NestedStrKeyDict, MaybeCoroutineCallable, MaybeAwaitable, 
-        MaybeContainer, MaybeAwaitableCallable, 
-    )
+    from ._typings_py312 import *
 else:
     Container: TypeAlias = Union[
         Generator[_T, Any, Any], Collection[_T], Reversible[_T],
@@ -45,10 +41,13 @@ else:
         Sequence[_T], AbstractSet[_T], filter, enumerate,
         ]
 
-    NestedContainer: TypeAlias = Union[_T, "Container[NestedContainer]"]
-    NestedStrKeyDict: TypeAlias = Dict[str, Union[_T, "NestedStrKeyDict"]]
+    
+    MaybeContainer: TypeAlias = Union[_T, Container[_T]]
+    NestedContainer: TypeAlias = Union[_T, "Container[NestedContainer[_T]]"]
+    NestedStrKeyDict: TypeAlias = Dict[str, Union[_T, "NestedStrKeyDict[_T]"]]
 
-    MaybeCoroutineCallable: TypeAlias = Callable[_P, Union[Coroutine[Any, Any, _T], _T]]
+    MaybeCoroutine: TypeAlias = Union[_T, Coroutine[Any, Any, _T]]
+    MaybeCoroutineCallable: TypeAlias = Callable[_P, MaybeCoroutine[_T]]
     MaybeAwaitableCallable: TypeAlias = Callable[_P, Union[Awaitable[_T], _T]]
     # Written out in full (not `MaybeCoroutineCallable[_P, _T]`) because
     # substituting into an *already-subscripted* ParamSpec generic nested
@@ -62,8 +61,8 @@ else:
     # used at call sites, which raises the same TypeError (confirmed on
     # 3.12). Callable[_P, ...] first discovers (_P, _T), matching the
     # intended subscript order.
-    MaybeAwaitable: TypeAlias = Union[Callable[_P, Union[Coroutine[Any, Any, _T], _T]], Awaitable[_T]]
-    MaybeContainer: TypeAlias = Union[_T, "Container[_T]"]
+    MaybeAwaitable: TypeAlias = Union[MaybeCoroutineCallable[_P, _T], Awaitable[_T]]
+    
 
 
 JsonValue: TypeAlias = Union[
@@ -114,6 +113,7 @@ __all__ = (
     "PathLike", 
     "LockProtocol", 
     "MaybeAwaitableCallable", 
+    "MaybeCoroutine", 
     "_P", "_T", "_CT", "_FT",
     "_KT", "_VT", "_True", "_False",
     "_EnumT", "_ExcT", 
