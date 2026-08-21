@@ -45,6 +45,15 @@ from .._optional import _optional_import, _unavailable_class
 from ..typings import (
     NestedStrKeyDict, MaybeList, JsonValue,
     StrInt, PathLike, _True, _False,
+
+    TemplateButtonType,
+    TemplateLineDict,
+    TemplateEachLineDict,
+    TemplateButtonDict,
+    TemplateEachButtonDict,
+    TemplateRichMessageDict,
+    TemplateDict,
+    TemplatePyroMessage,
 )
 from ..data_tools import clean_none_values
 from ..date_tools import arabic_time
@@ -53,19 +62,9 @@ from ..iter_tools import to_frozenset
 from ..files_tools import load_ref_json, read_json
 from ..classes import classproperty
 from .base import BaseDataClass
-from .typings import (
-    ButtonType,
-    LineDict,
-    EachLineDict,
-    ButtonDict,
-    EachButtonDict,
-    RichMessageDict,
-    TemplateDict,
-    PyroMessage,
-)
 
 
-def compile_lines(lines: Optional[List[Union[str, LineDict, EachLineDict]]]) -> Optional[List[Union[CompiledLine, CompiledEachLine]]]:
+def compile_lines(lines: Optional[List[Union[str, TemplateLineDict, TemplateEachLineDict]]]) -> Optional[List[Union[CompiledLine, CompiledEachLine]]]:
     """
     Compile a block of lines - the shape `message` and each rich message format share.
     Returns None for an empty block, so it is simply absent rather than blank.
@@ -134,7 +133,7 @@ class CompiledLine(CompiledConditional):
     text: str
 
     @classmethod
-    def compile(cls, item: Union[str, LineDict]) -> Self:
+    def compile(cls, item: Union[str, TemplateLineDict]) -> Self:
         if isinstance(item, str):
             item = {"text": item}
 
@@ -162,7 +161,7 @@ class CompiledEachLine(BaseDataClass):
     item: CompiledLine
 
     @classmethod
-    def compile(cls, item: EachLineDict) -> Self:
+    def compile(cls, item: TemplateEachLineDict) -> Self:
         item["item"] = CompiledLine.compile(item["item"])
         return cls.from_dict(item, True)
 
@@ -192,12 +191,12 @@ class CompiledButton(CompiledConditional):
     """
 
     text: str
-    type: ButtonType
+    type: TemplateButtonType
     value: str
     meta: Optional[Dict[str, Union[StrInt, ButtonStyle]]] = None
 
     @classmethod
-    def compile(cls, item: ButtonDict) -> Self:
+    def compile(cls, item: TemplateButtonDict) -> Self:
         return cls.from_dict(item, True, True)
 
     @classproperty(cached=True)
@@ -254,7 +253,7 @@ class CompiledEachButton(BaseDataClass):
     row_width: Optional[int] = None
 
     @classmethod
-    def compile(cls, item: EachButtonDict) -> Self:
+    def compile(cls, item: TemplateEachButtonDict) -> Self:
         item["item"] = CompiledButton.compile(item["item"])
         return cls.from_dict(item, True)
 
@@ -297,7 +296,7 @@ class CompiledButtonRow(BaseDataClass):
     buttons: List[CompiledButton]
 
     @classmethod
-    def compile(cls, item: MaybeList[ButtonDict]) -> Self:
+    def compile(cls, item: MaybeList[TemplateButtonDict]) -> Self:
         if is_mapping(item):
             item = [item]
 
@@ -329,7 +328,7 @@ class CompiledRichMessage(CompiledDefaults):
     skip_entity_detection: Optional[bool] = None
 
     @classmethod
-    def compile(cls, item: RichMessageDict) -> Self:
+    def compile(cls, item: TemplateRichMessageDict) -> Self:
         item["html"] = compile_lines(item.get("html", None))
         item["markdown"] = compile_lines(item.get("markdown", None))
 
@@ -434,7 +433,7 @@ if HAS_PYROGRAM:
             if rows:
                 return InlineKeyboardMarkup(rows)
 
-        def format(self, **kw) -> PyroMessage:
+        def format(self, **kw) -> TemplatePyroMessage:
             kw = self.with_defaults(clean_none_values(kw))
 
             rich_message = self.format_rich_message(kw)

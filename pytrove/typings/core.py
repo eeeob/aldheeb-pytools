@@ -1,3 +1,11 @@
+"""The package-wide type aliases, TypeVars and protocols.
+
+Everything here is general to pytrove as a whole -- anything scoped to one
+feature lives in its own sibling module (see template.py) and is named for
+that scope, since the whole package is re-exported flat from
+pytrove.typings.
+"""
+
 from __future__ import annotations
 
 from typing import (
@@ -28,10 +36,10 @@ _T = TypeVar("_T")
 # 3.12 -- an `if sys.version_info >= (3, 12):` guard around it in THIS file
 # would not help, since the whole file is parsed before any branch ever
 # executes. A conditional IMPORT is the only way to gate syntax itself: only
-# _typings_py312.py (which uses that syntax) is ever parsed, and only when
-# the running interpreter is 3.12+.
+# _core_py312.py (which uses that syntax) is ever parsed, and only when the
+# running interpreter is 3.12+.
 if sys.version_info >= (3, 12):
-    from ._typings_py312 import *
+    from ._core_py312 import *
 else:
     Container: TypeAlias = Union[
         Iterator[_T], Collection[_T], Reversible[_T], 

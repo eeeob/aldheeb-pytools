@@ -1,16 +1,17 @@
-"""Typing definitions shared across the models/ subpackage.
+"""The shapes a message template is written in, and the payload it renders to.
 
-The package-wide equivalent is pytrove/typings.py -- this one holds only
-what the model dataclasses themselves need, so a model module imports its
-shapes from here rather than defining them inline.
+These describe models/template_models only, so every name here is prefixed
+`Template*` -- pytrove.typings re-exports its modules flat, and an
+unprefixed `LineDict`/`ButtonDict`/`ParseMode` would read there as if it
+were a package-wide type rather than one belonging to this one feature.
 """
 
 from __future__ import annotations
 
 from typing import (
-    Dict, Union, List, 
+    Dict, Union, List,
     Literal, TypedDict, TypeAlias,
-    TYPE_CHECKING, 
+    TYPE_CHECKING,
 )
 
 import sys
@@ -25,35 +26,35 @@ if TYPE_CHECKING:
     from pyrogram.enums import ParseMode as PyroParseMode
     from pyrogram.types import InlineKeyboardMarkup, InputRichMessage
 
-from ..typings import MaybeList, JsonValue, StrInt
+from .core import MaybeList, JsonValue, StrInt
 
 
-ButtonType: TypeAlias = Literal["url", "callback_data"]
-ParseMode: TypeAlias = Literal["html", "markdown"]
+TemplateButtonType: TypeAlias = Literal["url", "callback_data"]
+TemplateParseMode: TypeAlias = Literal["html", "markdown"]
 
 
-class DefaultsDict(TypedDict):
+class TemplateDefaultsDict(TypedDict):
     """Keys every renderable part accepts to carry its own fallback values."""
 
     default_keys: NotRequired[Dict[str, JsonValue]]
     "Fallback values for keys not passed to format()."
 
-class ConditionalDict(DefaultsDict):
+class TemplateConditionalDict(TemplateDefaultsDict):
     """The opt-out/fallback keys every conditional part shares -- see
     template_models.CompiledConditional for how they are evaluated."""
 
     any_of: NotRequired[MaybeList[str]]
     all_of: NotRequired[MaybeList[str]]
 
-class LineDict(ConditionalDict):
+class TemplateLineDict(TemplateConditionalDict):
     text: str
-class EachLineDict(TypedDict):
+class TemplateEachLineDict(TypedDict):
     each: str
-    item: Union[str, LineDict]
+    item: Union[str, TemplateLineDict]
 
-class ButtonDict(ConditionalDict):
+class TemplateButtonDict(TemplateConditionalDict):
     text: str
-    type: ButtonType
+    type: TemplateButtonType
     value: str
 
     meta: NotRequired[Dict[str, StrInt]]
@@ -62,25 +63,25 @@ class ButtonDict(ConditionalDict):
     ButtonStyle.PRIMARY). CompiledButton.meta is the widened counterpart:
     compile() runs the values through from_dict(..., values_to_enums=True),
     which is what turns the ones naming a ButtonStyle into real members."""
-class EachButtonDict(TypedDict):
+class TemplateEachButtonDict(TypedDict):
     each: str
-    item: ButtonDict
+    item: TemplateButtonDict
     row_width: NotRequired[int]
 
-class RichMessageDict(DefaultsDict):
-    html: NotRequired[List[Union[str, LineDict, EachLineDict]]]
-    markdown: NotRequired[List[Union[str, LineDict, EachLineDict]]]
+class TemplateRichMessageDict(TemplateDefaultsDict):
+    html: NotRequired[List[Union[str, TemplateLineDict, TemplateEachLineDict]]]
+    markdown: NotRequired[List[Union[str, TemplateLineDict, TemplateEachLineDict]]]
     is_rtl: NotRequired[bool]
     skip_entity_detection: NotRequired[bool]
 
-class TemplateDict(DefaultsDict):
-    message: NotRequired[List[Union[str, LineDict, EachLineDict]]]
-    buttons: NotRequired[List[Union[MaybeList[ButtonDict], EachButtonDict]]]
-    parse_mode: NotRequired[ParseMode]
-    rich_message: NotRequired[RichMessageDict]
+class TemplateDict(TemplateDefaultsDict):
+    message: NotRequired[List[Union[str, TemplateLineDict, TemplateEachLineDict]]]
+    buttons: NotRequired[List[Union[MaybeList[TemplateButtonDict], TemplateEachButtonDict]]]
+    parse_mode: NotRequired[TemplateParseMode]
+    rich_message: NotRequired[TemplateRichMessageDict]
     key_time: NotRequired[str]
 
-class PyroMessage(TypedDict):
+class TemplatePyroMessage(TypedDict):
     """What CompiledTemplate.format() hands back -- spread straight into
     Client.send_message()/send_rich_message(). Every key is NotRequired
     because format() drops the ones that came out empty."""
@@ -92,15 +93,15 @@ class PyroMessage(TypedDict):
 
 
 __all__ = (
-    "ButtonType",
-    "ParseMode",
-    "DefaultsDict",
-    "ConditionalDict",
-    "LineDict",
-    "EachLineDict",
-    "ButtonDict",
-    "EachButtonDict",
-    "RichMessageDict",
+    "TemplateButtonType",
+    "TemplateParseMode",
+    "TemplateDefaultsDict",
+    "TemplateConditionalDict",
+    "TemplateLineDict",
+    "TemplateEachLineDict",
+    "TemplateButtonDict",
+    "TemplateEachButtonDict",
+    "TemplateRichMessageDict",
     "TemplateDict",
-    "PyroMessage",
+    "TemplatePyroMessage",
 )

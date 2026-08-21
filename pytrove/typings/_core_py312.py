@@ -1,8 +1,8 @@
 """Generic type aliases using PEP 695 `type X[T] = ...` syntax.
 
-Only ever imported on Python >= 3.12 (see typings.py's version check) --
-this syntax is a hard SyntaxError on older interpreters, so this module
-must never be imported unconditionally.
+Only ever imported on Python >= 3.12 (see core.py's version check) -- this
+syntax is a hard SyntaxError on older interpreters, so this module must
+never be imported unconditionally.
 """
 
 from typing import (
