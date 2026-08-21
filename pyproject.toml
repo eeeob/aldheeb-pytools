@@ -53,9 +53,10 @@ typecheck = ["typeguard>=4.3"]
 proxy = ["wrapt>=1.16"]
 locale = ["babel>=2.14"]
 jsonref = ["jsonref>=1.1"]
+fastjson = ["orjson>=3.9"]
 
 full = [
-    "pytrove[imap,phone,country,bs4,mongo,tg,crypto,typecheck,proxy,locale,jsonref]"
+    "pytrove[imap,phone,country,bs4,mongo,tg,crypto,typecheck,proxy,locale,jsonref,fastjson]"
 ]
 
 [tool.hatch.build.targets.sdist]

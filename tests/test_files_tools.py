@@ -41,31 +41,30 @@ def test_load_json_empty_file_raises_decode_error(tmp_path):
         load_json(path, default={"fallback": True})
 
 
-def test_save_json_cleans_up_temp_file_on_failure(tmp_path, monkeypatch):
+# The failure is triggered by data no serialiser can encode, rather than by
+# monkeypatching json.dumps: save_json hands the work to orjson whenever the
+# `fastjson` extra is installed and the kwargs allow it, so patching one
+# serialiser would silently stop testing anything on that path.
+class _Unserialisable:
+    pass
+
+
+def test_save_json_cleans_up_temp_file_on_failure(tmp_path):
     path = tmp_path / "data.json"
 
-    def _boom(*a, **k):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(json, "dumps", _boom)
-
-    with pytest.raises(RuntimeError):
-        save_json(path, {"a": 1})
+    with pytest.raises(TypeError):
+        save_json(path, {"a": _Unserialisable()})
 
     assert glob.glob(str(path) + "*.tmp") == []
     assert not path.exists()
 
 
-def test_save_json_does_not_corrupt_existing_file_on_failure(tmp_path, monkeypatch):
+def test_save_json_does_not_corrupt_existing_file_on_failure(tmp_path):
     path = tmp_path / "data.json"
     save_json(path, {"a": 1})
 
-    def _boom(*a, **k):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(json, "dumps", _boom)
-    with pytest.raises(RuntimeError):
-        save_json(path, {"a": 2})
+    with pytest.raises(TypeError):
+        save_json(path, {"a": _Unserialisable()})
 
     # The atomic replace never happened, so the original content must survive.
     assert load_json(path) == {"a": 1}
