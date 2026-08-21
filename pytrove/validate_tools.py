@@ -232,6 +232,7 @@ def is_phone_number(
     except Exception:
         return False
 
+@_optional_import(("phonenumbers", "phone"))
 def is_rc(rc: Any) -> TypeIs[str]:
     return isinstance(rc, str) \
     and rc.isalpha() and len(rc) == 2 \

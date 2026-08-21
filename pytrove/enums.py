@@ -25,6 +25,29 @@ class TgMessageLength(IntEnum):
     TEXT = 4096
     CAPTION = 1024
 
+class ArchiveFormat(StrEnum):
+    """Container and codec archive_tools.backup_folder writes.
+
+    The value is the extension the archive gets when `dest` names a
+    directory rather than a file.
+    """
+
+    ZIP = "zip"
+    """Deflate, one independently compressed member per file -- so members
+    compress in parallel, and a reader can extract one without touching the
+    rest. Pure stdlib, and opens natively in Windows Explorer."""
+
+    TAR_GZ = "tar.gz"
+    """Gzip over a single tar stream. Universally readable, but the stream
+    is one unit: it cannot be compressed in parallel, and extracting one
+    member means decompressing everything before it."""
+
+    TAR_ZST = "tar.zst"
+    """Zstandard over a single tar stream -- same shape as TAR_GZ, but the
+    codec parallelises internally, so it reaches gzip's ratio at several
+    times the speed. Needs the `zstd` extra."""
+
+
 class PickleSafety(IntEnum):
     """How much files_tools.read_pickle is willing to reconstruct.
 
@@ -96,6 +119,7 @@ IMAP_DOMAIN_TO_PROVIDER = {
 
 
 __all__ = (
+    "ArchiveFormat",
     "ImapEmailProvider",
     "PickleSafety",
     "PlatformDevice",

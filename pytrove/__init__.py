@@ -4,6 +4,7 @@ from .validate_tools import *
 from .date_tools import *
 from .num_tools import *
 from .files_tools import *
+from .archive_tools import *
 from .iter_tools import *
 from .text_tools import *
 from .async_tools import *
@@ -22,7 +23,8 @@ __all__ = (
     *validate_tools.__all__, 
     *date_tools.__all__, 
     *num_tools.__all__, 
-    *files_tools.__all__, 
+    *files_tools.__all__,
+    *archive_tools.__all__,
     *iter_tools.__all__, 
     *text_tools.__all__, 
     *async_tools.__all__, 

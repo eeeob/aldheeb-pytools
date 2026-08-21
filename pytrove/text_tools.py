@@ -28,7 +28,7 @@ _NOT_SET = object()
 def to_str(value: _T) -> Union[str, _T]:
     return (
         value 
-        if value is None or isinstance(value, bool) or is_container(value) 
+        if value is None or isinstance(value, (bool, str)) or is_container(value) 
         else str(value)
     )
 
