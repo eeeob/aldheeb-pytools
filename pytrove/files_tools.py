@@ -272,6 +272,29 @@ def write_json(
     `default` explicitly, and raise TypeError without one, exactly as json
     does. The two paths differ only in the compact form's whitespace.
 
+    `data` must not be mutated by another thread for the duration of the
+    call. Serialising walks the structure, and what happens when it changes
+    underneath depends on how the walk is implemented:
+
+      - A dict that changes SIZE mid-walk raises RuntimeError("dictionary
+        changed size during iteration"), so the write fails loudly and the
+        previous file survives.
+      - A list that changes does NOT raise. It is walked by index, so the
+        file is written successfully containing a mix of before-state and
+        after-state -- a snapshot that never existed. A shrinking list can
+        also lose entries outright.
+
+    Whether the walk is interruptible at all depends on the encoder. With
+    no `indent`, json uses its C encoder and orjson is C throughout: both
+    traverse without releasing the GIL, so another thread cannot interleave
+    and the snapshot is effectively atomic. Passing `indent` drops json to
+    its pure-Python encoder, which yields between elements and is fully
+    exposed to the hazard above.
+
+    `lock` does not help with any of this -- it guards the file, and is
+    only taken once the bytes already exist. Serialise under whatever lock
+    protects the structure, or hand in a copy.
+
     `fsync` is passed through to write_file -- see there for the durability
     it buys and what it costs.
     """
@@ -385,16 +408,29 @@ def write_pickle(
     ValueError("unsupported pickle protocol"). Pass an explicit `protocol`
     when that matters; the format is forward-compatible, so a newer Python
     reads an older protocol without any flag.
+
+    `data` must not be mutated by another thread while this runs. pickling
+    walks the object graph, and a dict that changes size mid-walk raises
+    RuntimeError while a list that does silently records a mix of before
+    and after -- see the note on write_json, which describes the same
+    hazard in full.
+
+    Serialising to bytes first and writing those, rather than pickling
+    straight into the file, is deliberate: pickle.dump() writes through a
+    Python file object, and every write is a point where another thread can
+    run and mutate the structure still being walked. dumps() stays inside
+    the C pickler for the whole traversal, which makes the snapshot
+    effectively atomic against other threads. It costs ~17% on a large
+    object and holds the blob in memory -- paid to keep the default
+    correct. Use `atomic_write` with `pickle.dump` directly if you own the
+    data outright and want the streaming behaviour back.
     """
 
     kw.setdefault("protocol", pickle.HIGHEST_PROTOCOL)
 
-    # pickle.dump() writes straight into the temp file rather than building
-    # the whole blob in memory first for write_file to copy out again --
-    # about 20% faster on a large object, and half the peak memory. On a
-    # small one the two are indistinguishable.
-    with atomic_write(path, binary=True, lock=lock, fsync=fsync) as f:
-        pickle.dump(data, f, **kw)
+    content = pickle.dumps(data, **kw)
+    del data
+    write_file(path, content, lock=lock, fsync=fsync)
 
 
 

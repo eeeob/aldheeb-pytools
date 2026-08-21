@@ -1,6 +1,7 @@
 import json
 import pickle
 
+from pickle import _compat_pickle  # type: ignore[attr-defined]
 from typing import Any, Dict, FrozenSet, Tuple, Union
 from .enums import PickleSafety
 
@@ -137,6 +138,32 @@ _UNSAFE_PICKLE_CLASSES: FrozenSet[Tuple[str, str]] = frozenset({
 })
 
 
+def _normalise_global(module: str, name: str) -> Tuple[str, str]:
+    """Map a Python 2 module/name pair to its Python 3 equivalent.
+
+    Protocols 0-2 write the Python 2 names for compatibility -- a set is
+    stored as `__builtin__.set`, not `builtins.set` -- and pickle.Unpickler
+    translates them back through _compat_pickle when loading. The checks
+    here have to see the same translated pair pickle will act on, or they
+    are checking a different name than the one that gets imported.
+
+    Skipping this is not merely a false refusal of a legitimate old
+    pickle. It is a hole: `__builtin__.eval` matches neither the allowed
+    set nor the blocklist entry for `builtins.eval`, so at BLOCKLIST level
+    it would sail straight through.
+    """
+
+    key = (module, name)
+
+    if key in _compat_pickle.NAME_MAPPING:
+        return _compat_pickle.NAME_MAPPING[key]
+
+    if module in _compat_pickle.IMPORT_MAPPING:
+        return _compat_pickle.IMPORT_MAPPING[module], name
+
+    return key
+
+
 class _RestrictedUnpickler(pickle.Unpickler):
     """Unpickler that only reconstructs what its PickleSafety level permits.
 
@@ -164,6 +191,10 @@ class _RestrictedUnpickler(pickle.Unpickler):
         self._allowed_modules = allowed_modules
 
     def _permits(self, module: str, name: str) -> bool:
+        # Decide on the pair pickle will actually import, not the one written
+        # in the file -- see _normalise_global.
+        module, name = _normalise_global(module, name)
+
         # Named explicitly via allow_classes, or one of the inert defaults --
         # true at every level, so allow_classes keeps working as an escape
         # hatch even at STRICT.
