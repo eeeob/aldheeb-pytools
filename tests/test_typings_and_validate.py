@@ -18,11 +18,17 @@ def test_is_container_accepts_plain_collections():
     assert is_container(x for x in range(2))  # generator expression -> Generator ABC
 
 
-def test_is_container_rejects_bare_iterator():
-    # Container is defined as Generator | Collection | Reversible | Sequence |
-    # AbstractSet | Mapping | filter | enumerate | zip -- a plain list_iterator
-    # matches none of these, so it is intentionally NOT considered a container.
-    assert not is_container(iter([1, 2]))
+def test_is_container_accepts_bare_iterator():
+    # Container names Iterator rather than listing filter/enumerate/zip one by
+    # one -- those are all Iterators anyway, and neither `filter` nor `zip` is
+    # subscriptable at runtime, so `filter[I]` raised TypeError the moment the
+    # alias was evaluated. Consequence of the wider member: any single-pass
+    # iterator now counts as a container, list_iterator included.
+    assert is_container(iter([1, 2]))
+    assert is_container(filter(None, [1, 2]))
+    assert is_container(enumerate([1, 2]))
+    assert is_container(zip([1, 2], "ab"))
+    assert is_container(map(str, [1, 2]))
 
 
 def test_is_container_rejects_not_container_types():
