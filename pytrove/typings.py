@@ -44,6 +44,7 @@ else:
     ]
 
     
+    MaybeList: TypeAlias = Union[_T, List[_T]]
     MaybeContainer: TypeAlias = Union[_T, Container[_T]]
     NestedContainer: TypeAlias = Union[_T, Container["NestedContainer[_T]"]]
     NestedStrKeyDict: TypeAlias = Dict[str, Union[_T, "NestedStrKeyDict[_T]"]]
@@ -77,6 +78,7 @@ NotContainer: TypeAlias = Union[bytearray, bytes, str, memoryview, EnumType, Awa
 PhoneNumber: TypeAlias = Annotated[str, "Phone number in international format, e.g. +967xxxxxxxxx"]
 RegionCode: TypeAlias = Annotated[str, "ISO region code, verify that it is valid"]
 Number: TypeAlias = Union[int, float]
+StrInt: TypeAlias = Union[int, str]
 PathLike: TypeAlias = Union[str, bytes, "os.PathLike[str]", "os.PathLike[bytes]"]
 
 
@@ -110,6 +112,7 @@ __all__ = (
     "MaybeAwaitable",
     "CountryInfo",
     "Number",
+    "StrInt", 
     "MaybeCoroutineCallable",
     "MaybeContainer", 
     "JsonValue", 
@@ -117,6 +120,7 @@ __all__ = (
     "LockProtocol", 
     "MaybeAwaitableCallable", 
     "MaybeCoroutine", 
+    "MaybeList", 
     "_P", "_T", "_CT", "_FT",
     "_KT", "_VT", "_True", "_False",
     "_EnumT", "_ExcT", 

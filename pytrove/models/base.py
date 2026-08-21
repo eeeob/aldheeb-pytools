@@ -169,7 +169,7 @@ class BaseDataClass:
             data = clean_none_values(data)
         
         if values_to_enums and cls.__enums_types__:
-            data = value_to_enum(data, cls.__enums_types__, True)
+            data = value_to_enum(data, cls.__enums_types__, "v")
         
         return cls(**data)
     
@@ -200,7 +200,7 @@ class BaseDataClass:
             data = clean_none_values(data)
 
         if values_to_enums and cls.__enums_types__:
-            data = value_to_enum(data, cls.__enums_types__, True)
+            data = value_to_enum(data, cls.__enums_types__, "v")
 
         
         return cls(**data)

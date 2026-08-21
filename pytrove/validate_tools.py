@@ -50,7 +50,7 @@ except ImportError:
 
 from .typings import (
     Container, NotContainer, NestedContainer, 
-    _True, _False, 
+    StrInt, _True, _False, 
     _T, _KT, _VT, 
 )
 from .errors import ValidationError
@@ -177,7 +177,7 @@ def is_tg_channel_message_link(message_link: Any) -> TypeIs[str]:
     )
 
 @overload
-def is_tg_otp_code(code: Any, with_str: _True = True, remove_spaces: bool = False) -> TypeIs[Union[int, str]]: ...
+def is_tg_otp_code(code: Any, with_str: _True = True, remove_spaces: bool = False) -> TypeIs[StrInt]: ...
 @overload
 def is_tg_otp_code(code: Any, with_str: _False) -> TypeIs[int]: ...
 def is_tg_otp_code(code, with_str = True, remove_spaces = False):
@@ -198,7 +198,7 @@ def is_phone_number(
     phone_number: Union[str, int, "phonenumbers.PhoneNumber"], 
     remove_spaces: bool = True, 
     resolve: bool = True
-    ) -> TypeIs[Union[int, str]]:
+    ) -> TypeIs[StrInt]:
 
     if isinstance(phone_number, phonenumbers.PhoneNumber):
         parsed_number = phone_number

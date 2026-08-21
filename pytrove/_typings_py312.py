@@ -8,7 +8,7 @@ must never be imported unconditionally.
 from typing import (
     Collection, Iterator, Union, Reversible,
     Sequence, AbstractSet, Mapping, Any, Dict, 
-    Callable, Coroutine, Awaitable,
+    Callable, Coroutine, Awaitable, List, 
 )
 
 
@@ -21,6 +21,8 @@ type ContainerWithoutMapping[I] = Union[
     Sequence[I], AbstractSet[I], 
     ]
 
+
+type MaybeList[I] = I | List[I]
 type MaybeContainer[I] = I | Container[I]
 type NestedContainer[I] = I | Container[NestedContainer[I]]
 type NestedStrKeyDict[V] = Dict[str, V | NestedStrKeyDict[V]]
@@ -41,5 +43,6 @@ __all__ = (
     "MaybeCoroutineCallable",
     "MaybeAwaitableCallable",
     "MaybeAwaitable",
+    "MaybeList", 
     
 )
