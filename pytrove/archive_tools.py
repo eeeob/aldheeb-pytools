@@ -9,6 +9,9 @@ from .iter_tools import iter_flat_cont, to_frozenset
 from .files_tools import atomic_write, resolve_path
 from ._archive_tools import (
     HAS_ZSTD,
+    _detect_format,
+    _extract_tar,
+    _extract_zip,
     _iter_entries,
     _write_tar,
     _write_zip,
@@ -55,6 +58,13 @@ def backup_folder(
     is actually being archived. Extracting therefore reproduces the files
     and the paths they need, not the shape of the source tree.
 
+    Writing the archive into the folder being archived is safe: the
+    destination, and the temp file it is written through, are both left
+    out of the walk. Without that an archive records itself mid-write, and
+    backing up to the same name repeatedly grows it every run. Any *other*
+    archive already sitting in the tree is still ordinary content -- add
+    `exclude="*.zip"` (or the format you use) if you want those out too.
+
     `format` picks the container, see ArchiveFormat:
 
       ZIP (default)  every file compressed independently, so the work
@@ -97,7 +107,7 @@ def backup_folder(
 
     includes = to_frozenset(iter_flat_cont(include))
     excludes = to_frozenset(iter_flat_cont(exclude))
-    entries = _iter_entries(str(src), includes, excludes, follow_symlinks, hidden)
+    entries = _iter_entries(str(src), includes, excludes, follow_symlinks, hidden, dest_path)
 
     with atomic_write(dest_path, binary=True, fsync=fsync) as out:
         if fmt is ArchiveFormat.ZIP:
@@ -108,5 +118,78 @@ def backup_folder(
     return dest_path
 
 
-__all__ = "backup_folder",
+def extract_archive(
+    src: PathLike,
+    dest: PathLike,
+    *,
+    include: Optional[NestedContainer[str]] = None,
+    exclude: Optional[NestedContainer[str]] = None,
+    workers: Optional[int] = None,
+    executor: Optional[ThreadPoolExecutor] = None,
+    ) -> Path:
+
+    """Extract the archive at `src` into `dest`, and return `dest`.
+
+    The format is read from the file's own leading bytes, so any of the
+    three backup_folder writes is handled without being told which -- and a
+    renamed archive still extracts as what it actually is. `dest` is
+    created if it does not exist.
+
+    `include`/`exclude` are the same glob patterns backup_folder takes, so
+    a single file or subtree can be pulled out of a large archive without
+    unpacking the rest.
+
+    Nothing is ever written outside `dest`. Archive member names are
+    attacker-controlled strings, and a "../" or an absolute path in one is
+    how an archive overwrites files it was never given access to --
+    tarfile's own extractall() had no protection against this at all
+    before the filters added in 3.12, which is why the check lives here
+    rather than being delegated. A leading "/" is stripped, as tar itself
+    does, so "/etc/passwd" extracts to dest/etc/passwd; a name that still
+    resolves outside after that is skipped. Symlink, hardlink and device
+    members are skipped too: a symlink can point anywhere, and a later
+    member written "through" it would land outside despite its own name
+    looking harmless.
+
+    Extraction parallelises far less than compression does -- roughly 1.9x
+    against 11x -- because unpacking many small files is dominated by the
+    write syscalls rather than by decompression. zip inflates its members
+    in parallel; a tar is one stream and can only be read serially, so
+    there only the writes are spread across `workers`.
+    """
+
+    src = resolve_path(src, strict=True)
+    dest = resolve_path(dest)
+
+    if not src.is_file():
+        raise ValidationError(f"extract_archive: {str(src)!r} is not a file")
+
+    fmt = _detect_format(str(src))
+
+    if fmt is ArchiveFormat.TAR_ZST and not HAS_ZSTD:
+        raise ImportError(
+            "To use this feature, all required packages must be installed.\n"
+            "Run: pip install 'pytrove[zstd]'\n"
+            "\n"
+            "Required : 'zstandard'\n"
+            "Missing  : 'zstandard'"
+        )
+
+    dest.mkdir(parents=True, exist_ok=True)
+
+    includes = to_frozenset(iter_flat_cont(include))
+    excludes = to_frozenset(iter_flat_cont(exclude))
+
+    if fmt is ArchiveFormat.ZIP:
+        _extract_zip(src, dest, includes, excludes, workers, executor)
+    else:
+        _extract_tar(src, dest, fmt, includes, excludes, workers, executor)
+
+    return dest
+
+
+__all__ = (
+    "backup_folder",
+    "extract_archive",
+)
 
