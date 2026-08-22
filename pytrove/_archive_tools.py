@@ -364,7 +364,15 @@ def _write_tar(out, entries, fmt: ArchiveFormat, level) -> None:
             # tar's parallelism has to come from, since the stream itself
             # cannot be split the way zip members can.
             threads=-1,
-        ).stream_writer(out)
+        ).stream_writer(
+            out,
+            # stream_writer closes what it was given when its context ends,
+            # which would shut the temp file atomic_write is still holding
+            # -- the fsync that follows then fails with "flush of closed
+            # file". gzip.GzipFile(fileobj=...) leaves it open, which is
+            # why only this path needed saying so.
+            closefd=False,
+        )
     else:
         compressor = gzip.GzipFile(
             fileobj=out,
@@ -556,7 +564,10 @@ def _extract_tar(src: Path, dest: Path, fmt: ArchiveFormat, include, exclude, wo
 
     if fmt is ArchiveFormat.TAR_ZST:
         raw = open(src, "rb")
-        stream = zstandard.ZstdDecompressor().stream_reader(raw)
+        # closefd=False for the same reason as the writing side: the handle
+        # is closed here, in one place, rather than by whoever happens to
+        # be wrapping it.
+        stream = zstandard.ZstdDecompressor().stream_reader(raw, closefd=False)
     else:
         raw = None
         stream = gzip.open(src, "rb")
